@@ -1,2 +1,5 @@
-db/*
+.vscode*
 .cursor*
+*debug*
+db/*
+*node_modules/*
