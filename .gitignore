@@ -3,3 +3,5 @@
 *debug*
 db/*
 *node_modules/*
+customer/vendor/*
+order/vendor/*
