@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #status {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        #log {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input {
+            padding: 8px;
+            width: 100%;
+            max-width: 300px;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        .toast {
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            margin-bottom: 10px;
+            display: flex;
+            width: 350px;
+            animation: enter 0.3s ease-out;
+        }
+        .toast-content {
+            flex: 1;
+            padding: 12px;
+        }
+        .toast-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .toast-description {
+            color: #666;
+            font-size: 14px;
+        }
+        .toast-tag {
+            display: inline-block;
+            background-color: #e3f2fd;
+            color: #0d47a1;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-top: 5px;
+        }
+        .toast-action {
+            display: flex;
+            border-left: 1px solid #eee;
+        }
+        .toast-button {
+            background: none;
+            border: none;
+            color: #1e88e5;
+            padding: 0 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .toast-button:hover {
+            background-color: #f5f5f5;
+        }
+        .button-group {
+            margin-bottom: 20px;
+        }
+        .button-group button {
+            margin-right: 10px;
+        }
+        @keyframes enter {
+            0% {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes leave {
+            0% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Test Page</h1>
+
+    <div class="form-group">
+        <label for="userId">User ID:</label>
+        <input type="text" id="userId" value="U0001">
+    </div>
+
+    <div id="status" class="disconnected">Disconnected</div>
+
+    <div class="button-group">
+        <button id="connect">Connect</button>
+        <button id="disconnect" disabled>Disconnect</button>
+        <button id="authorize" disabled>Send Authorization</button>
+        <button id="simulate">Simulate Notification</button>
+    </div>
+
+    <h2>Messages:</h2>
+    <div id="log"></div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        const connectBtn = document.getElementById('connect');
+        const disconnectBtn = document.getElementById('disconnect');
+        const authorizeBtn = document.getElementById('authorize');
+        const simulateBtn = document.getElementById('simulate');
+        const userIdInput = document.getElementById('userId');
+        const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
+        const toastContainer = document.getElementById('toast-container');
+
+        let socket = null;
+
+        function log(message) {
+            const item = document.createElement('div');
+            item.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logDiv.appendChild(item);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            if (connected) {
+                statusDiv.className = 'connected';
+                statusDiv.textContent = 'Connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                authorizeBtn.disabled = false;
+            } else {
+                statusDiv.className = 'disconnected';
+                statusDiv.textContent = 'Disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                authorizeBtn.disabled = true;
+            }
+        }
+
+        function showToast(notification) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+
+            const content = document.createElement('div');
+            content.className = 'toast-content';
+
+            const title = document.createElement('div');
+            title.className = 'toast-title';
+            title.textContent = notification.title;
+
+            const description = document.createElement('div');
+            description.className = 'toast-description';
+            description.textContent = notification.description;
+
+            const tag = document.createElement('span');
+            tag.className = 'toast-tag';
+            tag.textContent = notification.topic;
+
+            content.appendChild(title);
+            content.appendChild(description);
+            content.appendChild(tag);
+
+            const action = document.createElement('div');
+            action.className = 'toast-action';
+
+            const button = document.createElement('button');
+            button.className = 'toast-button';
+            button.textContent = 'View';
+            button.onclick = () => {
+                if (notification.link) {
+                    window.open(notification.link, '_blank');
+                }
+                toast.style.animation = 'leave 0.3s forwards';
+                setTimeout(() => {
+                    toastContainer.removeChild(toast);
+                }, 300);
+            };
+
+            action.appendChild(button);
+
+            toast.appendChild(content);
+            toast.appendChild(action);
+
+            toastContainer.appendChild(toast);
+
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (toastContainer.contains(toast)) {
+                    toast.style.animation = 'leave 0.3s forwards';
+                    setTimeout(() => {
+                        if (toastContainer.contains(toast)) {
+                            toastContainer.removeChild(toast);
+                        }
+                    }, 300);
+                }
+            }, 5000);
+        }
+
+        function sendAuthorization() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                log('Cannot send authorization: WebSocket is not connected');
+                return;
+            }
+
+            const userId = userIdInput.value.trim();
+            if (!userId) {
+                log('User ID cannot be empty');
+                return;
+            }
+
+            const authMessage = {
+                topic: 'AUTHORIZATION',
+                content: {
+                    user_id: userId
+                }
+            };
+
+            socket.send(JSON.stringify(authMessage));
+            log(`Sent authorization with User ID: ${userId}`);
+        }
+
+        function simulateNotification() {
+            const notification = {
+                topic: 'order-created',
+                title: 'New Order Received',
+                description: 'Order #12345 has been received and is being processed.',
+                link: 'http://localhost:3000/orders/12345'
+            };
+
+            showToast(notification);
+            log('Simulated notification: ' + JSON.stringify(notification));
+        }
+
+        connectBtn.addEventListener('click', () => {
+            try {
+                socket = new WebSocket('ws://localhost:8382/notifications');
+
+                socket.onopen = () => {
+                    log('Connection established');
+                    updateStatus(true);
+
+                    // Auto-send authorization
+                    setTimeout(() => {
+                        sendAuthorization();
+                    }, 500);
+                };
+
+                socket.onmessage = (event) => {
+                    log(`Message received: ${event.data}`);
+                    try {
+                        const data = JSON.parse(event.data);
+                        const formattedData = JSON.stringify(data, null, 2);
+                        log(`Parsed message: ${formattedData}`);
+
+                        // Show toast for ANNOUNCEMENT messages
+                        if (data.topic === 'ANNOUNCEMENT') {
+                            showToast(data.content);
+                        }
+                    } catch (e) {
+                        log(`Error parsing message: ${e.message}`);
+                    }
+                };
+
+                socket.onerror = (error) => {
+                    log(`Error: ${error.message || 'Unknown error'}`);
+                };
+
+                socket.onclose = () => {
+                    log('Connection closed');
+                    updateStatus(false);
+                    socket = null;
+                };
+            } catch (error) {
+                log(`Error creating WebSocket: ${error.message}`);
+            }
+        });
+
+        disconnectBtn.addEventListener('click', () => {
+            if (socket) {
+                socket.close();
+            }
+        });
+
+        authorizeBtn.addEventListener('click', sendAuthorization);
+        simulateBtn.addEventListener('click', simulateNotification);
+    </script>
+</body>
+</html>
