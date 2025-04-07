@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	port "github.com/DuongVu089x/interview/customer/application/port"
+	port "github.com/DuongVu089x/interview/customer/application/messaging_port"
 	domain "github.com/DuongVu089x/interview/customer/domain"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
@@ -37,8 +37,18 @@ func (c *Consumer) RegisterHandler(topic string, handler func(domain.Message) er
 
 	c.handlers[topic] = handler
 
-	// Subscribe to this topic
+	return nil
+
+	// // // Subscribe to this topic
+	// // topics := c.getSubscribedTopics()
+	// // fmt.Println("Subscribing to topics: ", topics)
+	// return c.consumer.SubscribeTopics(topics, nil)
+}
+
+// New method to subscribe after all handlers are registered
+func (c *Consumer) Subscribe() error {
 	topics := c.getSubscribedTopics()
+	fmt.Println("Subscribing to topics: ", topics)
 	return c.consumer.SubscribeTopics(topics, nil)
 }
 
@@ -51,6 +61,8 @@ func (c *Consumer) getSubscribedTopics() []string {
 }
 
 func (c *Consumer) Start(ctx context.Context) error {
+	fmt.Println("Starting kafka consumer with topics: ", c.getSubscribedTopics())
+
 	if len(c.handlers) == 0 {
 		return fmt.Errorf("no handlers registered, cannot start consumer")
 	}
@@ -60,9 +72,8 @@ func (c *Consumer) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			msg, err := c.consumer.ReadMessage(100 * time.Millisecond)
+			msg, err := c.consumer.ReadMessage(1 * time.Second)
 			if err != nil {
-				// Timeout is not an error, just continue
 				if err.(kafka.Error).Code() == kafka.ErrTimedOut {
 					continue
 				}
@@ -86,7 +97,6 @@ func (c *Consumer) Start(ctx context.Context) error {
 			// Find and execute the appropriate handler
 			if handler, ok := c.handlers[domainMsg.Topic]; ok {
 				if err := handler(domainMsg); err != nil {
-					// Log error but continue processing
 					fmt.Printf("Error processing message from topic %s: %v\n",
 						domainMsg.Topic, err)
 				}

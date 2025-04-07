@@ -7,18 +7,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DuongVu089x/interview/customer/api/rest/notification"
+	"github.com/DuongVu089x/interview/customer/application/consumer"
 	"github.com/DuongVu089x/interview/customer/component/appctx"
+	"github.com/DuongVu089x/interview/customer/component/server"
 	"github.com/DuongVu089x/interview/customer/config"
-	"github.com/DuongVu089x/interview/customer/domain"
 	"github.com/DuongVu089x/interview/customer/infrastructure/kafka"
+	"github.com/DuongVu089x/interview/customer/middleware"
 	"github.com/DuongVu089x/interview/customer/websocket"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	notificationusecase "github.com/DuongVu089x/interview/customer/application/notification"
-	notificationdomain "github.com/DuongVu089x/interview/customer/domain/notification"
-	notificationrepository "github.com/DuongVu089x/interview/customer/repository/notification"
 	userconnrepository "github.com/DuongVu089x/interview/customer/repository/user_connection"
 )
 
@@ -74,29 +74,26 @@ func setupWebsocket(cfg *config.Config, mainDB *mongo.Client) *websocket.WSServe
 
 // Function to initialize Kafka consumer
 func initKafkaConsumer(cfg *config.Config) (*kafka.RetryableConsumer, error) {
-	// Convert config format
-	kafkaTopics := make([]kafka.TopicConfig, 0, len(cfg.Kafka.Topics))
-	for _, topic := range cfg.Kafka.Topics {
-		kafkaTopics = append(kafkaTopics, kafka.TopicConfig{
-			Name:              topic.Name,
-			NumPartitions:     topic.NumPartitions,
-			ReplicationFactor: topic.ReplicationFactor,
-		})
-	}
 
+	// Initialize Kafka producer with config
 	producerConfig := kafka.ProducerConfig{
 		BootstrapServers: cfg.Kafka.BootstrapServers,
 		SecurityProtocol: cfg.Kafka.SecurityProtocol,
 		DefaultTopic:     cfg.Kafka.DefaultTopic,
-		Topics:           kafkaTopics,
 	}
 
 	// Initialize Kafka consumer with config
 	consumerConfig := kafka.ConsumerConfig{
-		BootstrapServers: cfg.Kafka.BootstrapServers,
-		SecurityProtocol: cfg.Kafka.SecurityProtocol,
-		GroupID:          "my-consumer-group",
-		AutoOffsetReset:  "earliest",
+		BootstrapServers:            cfg.Kafka.BootstrapServers,
+		SecurityProtocol:            cfg.Kafka.SecurityProtocol,
+		GroupID:                     "my-consumer-group",
+		AutoOffsetReset:             "earliest",
+		SessionTimeoutMs:            45000,
+		HeartbeatIntervalMs:         14000, // Should be lower than session timeout
+		MaxPollIntervalMs:           300000,
+		PartitionAssignmentStrategy: "roundrobin",
+		EnableAutoCommit:            true,
+		AutoCommitIntervalMs:        5000,
 	}
 
 	retryConfig := kafka.RetryConfig{
@@ -116,58 +113,6 @@ func initKafkaConsumer(cfg *config.Config) (*kafka.RetryableConsumer, error) {
 	return consumer, nil
 }
 
-func registerConsumerKafka(appCtx appctx.AppContext) error {
-	mainDB := appCtx.GetMainDBConnection()
-	consumer := appCtx.GetKafkaConsumer()
-	wsServer := appCtx.GetWebSocketServer()
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// Register different handlers for different topics
-	err := consumer.RegisterHandler("orders-topic", func(msg domain.Message) error {
-
-		fmt.Printf("Processing order: key: %s, topic: %s, partition: %d, offset: %d\n", msg.Key, msg.Topic, msg.Partition, msg.Offset)
-		fmt.Printf("Processing order: payload: %v\n", msg.Value.Payload)
-
-		payload := msg.Value.Payload
-		payloadMap := payload.(map[string]any)
-
-		notificationRepository := notificationrepository.NewMongoRepository(mainDB)
-		userConnRepository := userconnrepository.NewMongoRepository(mainDB)
-
-		notificationHandler := websocket.NewWebSocketHandler(userConnRepository, wsServer)
-		notificationDispatcher := websocket.NewNotificationDispatcher(wsServer, "/notifications", notificationHandler)
-		notificationUsecase := notificationusecase.NewUseCase(notificationRepository, notificationDispatcher)
-		notificationUsecase.CreateNotification(&notificationdomain.Notification{
-			Topic:       "order-created",
-			Title:       "Order Created",
-			Description: "Order created successfully",
-			Link:        fmt.Sprintf("localhost:8081/order/%f", payloadMap["order_id"].(float64)),
-			UserId:      payloadMap["user_id"].(string),
-		})
-
-		return nil
-	})
-	if err != nil {
-		log.Fatalf("Failed to register handler: %s", err)
-	}
-
-	// Start consuming messages in a goroutine
-	go func() {
-		defer func() {
-			consumer.Close()
-			cancel()
-		}()
-
-		if err := consumer.Start(ctx); err != nil && err != context.Canceled {
-			log.Fatalf("Consumer error: %s", err)
-		}
-
-	}()
-
-	return nil
-}
-
 func main() {
 	cfg := config.LoadConfig()
 
@@ -175,40 +120,55 @@ func main() {
 	mainDB, err := initMainDB(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize main database: %v", err)
-		return
 	}
 
 	readDB, err := initReadDB(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize read database: %v", err)
-		return
 	}
 
 	kafkaConsumer, err := initKafkaConsumer(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize Kafka consumer: %v", err)
-		return
 	}
 
 	wsServer := setupWebsocket(cfg, mainDB)
 
 	appCtx := appctx.NewAppContext(mainDB, readDB, nil, kafkaConsumer, nil, wsServer)
 
-	// register consumer kafka
-	registerConsumerKafka(appCtx)
+	// Initialize consumer service
+	notificationConsumer := consumer.NewNotificationConsumer(appCtx)
+	consumerService := consumer.NewConsumerService(appCtx, notificationConsumer)
 
+	// Start consumer service in a goroutine with context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		if err := consumerService.SetupConsumers(ctx); err != nil {
+			log.Fatalf("Failed to start consumer service: %v", err)
+		}
+	}()
+
+	// Initialize HTTP server
 	e := echo.New()
+	e.Use(middleware.Recover())
+	e.Use(middleware.ConfigureCORS())
+	e.Use(middleware.RequestLogger())
 
+	// Register routes
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "OK"})
 	})
+	notificationHandler := notification.NewHandler(appCtx)
+	notification.RegisterRoutes(e, notificationHandler)
 
-	// Start server
-	serverAddr := fmt.Sprintf(":%s", cfg.Server.Port)
-	log.Printf("Starting server on %s", serverAddr)
-	if err := e.Start(serverAddr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Print routes for debugging
+	middleware.PrintRegisteredRoutes(e)
+
+	// Start server with graceful shutdown
+	srv := server.NewServer(e, cfg.Server.Port, appCtx)
+	if err := srv.Start(); err != nil {
+		log.Fatal(err)
 	}
-
-	e.Start(serverAddr)
 }

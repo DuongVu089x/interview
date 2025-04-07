@@ -68,7 +68,7 @@ func (uc *UseCase) CreateOrder(ctx appcontext.AppContext, req CreateOrderRequest
 			},
 			MessageCode: order.OrderCode,
 			Payload: map[string]any{
-				"order_id": order.OrderID,
+				"order_id": fmt.Sprintf("%d", order.OrderID),
 				"user_id":  order.UserID,
 				"amount":   order.TotalAmount,
 				"status":   order.Status,
@@ -84,12 +84,40 @@ func (uc *UseCase) CreateOrder(ctx appcontext.AppContext, req CreateOrderRequest
 	return &response, nil
 }
 
-func (uc *UseCase) GetOrder(id string) (*OrderResponse, error) {
+func (uc *UseCase) GetOrder(id int64) (*OrderResponse, error) {
 	order, err := uc.orderService.GetOrder(id)
 	if err != nil {
 		return nil, err
 	}
+
 	// Convert domain entity to response DTO
 	response := uc.mapper.ToResponse(order)
 	return &response, nil
+}
+
+// GetOrdersByUserID retrieves all orders for a specific user
+func (uc *UseCase) GetOrdersByUserID(req GetOrdersByUserIDRequest) (*OrderListResponse, error) {
+	// Prepare conditions map for filtering
+	conditions := make(map[string]any)
+	if req.Status != "" {
+		conditions["status"] = domainorder.OrderStatus(req.Status)
+	}
+
+	// Get orders from domain service
+	orders, err := uc.orderService.GetOrderByCustomerID(req.UserID, conditions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get orders: %w", err)
+	}
+
+	// Convert domain entities to response DTOs
+	var orderResponses []OrderResponse
+	for _, order := range orders {
+		orderResponses = append(orderResponses, uc.mapper.ToResponse(&order))
+	}
+
+	// Return the list of orders
+	return &OrderListResponse{
+		Orders: orderResponses,
+		Count:  len(orderResponses),
+	}, nil
 }

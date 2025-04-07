@@ -1,15 +1,65 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWebSocket } from './WebSocketProvider';
 import { Notification } from '@/lib/socket';
 
 export default function NotificationComponent() {
-  const { isConnected, notifications, markAllAsRead } = useWebSocket();
+  const { isConnected, notifications: wsNotifications, markAllAsRead } = useWebSocket();
   const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/notifications?userId=U0001&page=${page}&limit=10`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch notifications');
+      }
+      const data = await response.json();
+      const newNotifications = data.notifications;
+
+      if (page === 1) {
+        setNotifications(newNotifications);
+      } else {
+        setNotifications(prev => [...prev, ...newNotifications]);
+      }
+
+      setHasMore(newNotifications.length === 10);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMore = () => {
+    if (!loading && hasMore) {
+      setPage(prev => prev + 1);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [isOpen, page]);
+
+  // Merge websocket notifications with fetched notifications
+  useEffect(() => {
+    if (wsNotifications.length > 0) {
+      setNotifications(prev => [...wsNotifications, ...prev]);
+    }
+  }, [wsNotifications]);
 
   const toggleNotifications = () => {
     setIsOpen(!isOpen);
+    if (!isOpen) {
+      setPage(1); // Reset page when opening
+    }
   };
 
   const handleMarkAllAsRead = () => {
@@ -70,37 +120,50 @@ export default function NotificationComponent() {
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="py-4 px-3 text-center text-gray-500">
-                No new notifications
+                {loading ? 'Loading notifications...' : 'No new notifications'}
               </div>
             ) : (
-              <ul>
-                {notifications.map((notification, index) => (
-                  <li
-                    key={index}
-                    className="border-b border-gray-200 last:border-0 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleNotificationClick(notification)}
-                  >
-                    <div className="py-3 px-4">
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0 bg-blue-100 rounded-full p-1">
-                          <svg className="h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                          </svg>
-                        </div>
-                        <div className="ml-3 w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-900">{notification.title}</p>
-                          <p className="text-sm text-gray-500">{notification.description}</p>
-                          {notification.topic && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
-                              {notification.topic}
-                            </span>
-                          )}
+              <>
+                <ul>
+                  {notifications.map((notification, index) => (
+                    <li
+                      key={index}
+                      className="border-b border-gray-200 last:border-0 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleNotificationClick(notification)}
+                    >
+                      <div className="py-3 px-4">
+                        <div className="flex items-start">
+                          <div className="flex-shrink-0 bg-blue-100 rounded-full p-1">
+                            <svg className="h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                            </svg>
+                          </div>
+                          <div className="ml-3 w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                            <p className="text-sm text-gray-500">{notification.description}</p>
+                            {notification.topic && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                                {notification.topic}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+                {hasMore && (
+                  <div className="py-2 px-3 text-center">
+                    <button
+                      onClick={loadMore}
+                      className="text-sm text-blue-500 hover:text-blue-700"
+                      disabled={loading}
+                    >
+                      {loading ? 'Loading...' : 'Load more'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

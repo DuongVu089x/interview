@@ -26,3 +26,15 @@ type OrderResponse struct {
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
+
+// GetOrdersByUserIDRequest defines request parameters for getting orders by user ID
+type GetOrdersByUserIDRequest struct {
+	UserID string `json:"userId,omitempty" validate:"omitempty"`
+	Status string `json:"status,omitempty" validate:"omitempty"`
+}
+
+// OrderListResponse represents a collection of orders
+type OrderListResponse struct {
+	Orders []OrderResponse `json:"orders,omitempty"`
+	Count  int             `json:"count,omitempty"`
+}

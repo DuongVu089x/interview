@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
+import { WebSocketProvider } from '@/components/WebSocketProvider';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,7 +19,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        {children}
+        <WebSocketProvider userId="U0001">
+          {children}
+        </WebSocketProvider>
         <Toaster position="top-right" />
       </body>
     </html>

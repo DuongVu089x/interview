@@ -1,9 +1,11 @@
 'use client';
 
-import { WebSocketProvider } from '@/components/WebSocketProvider';
 import NotificationComponent from '@/components/NotificationComponent';
+import UserOrderList from '@/components/UserOrderList';
 
 export default function Home() {
+  const userId = 'U0001'; // Default user ID - in a real app, this would come from authentication
+
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -13,9 +15,11 @@ export default function Home() {
               <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
               <p className="mt-1 text-sm text-gray-500">Welcome to your application dashboard</p>
             </div>
-            <WebSocketProvider userId="U0001">
-              <NotificationComponent />
-            </WebSocketProvider>
+			<NotificationComponent />
+          </div>
+
+          <div className="mt-8">
+            <UserOrderList userId={userId} />
           </div>
 
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">

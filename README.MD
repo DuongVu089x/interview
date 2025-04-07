@@ -23,96 +23,137 @@ openssl rand -base64 756 > db/mongo/keyfile
 chmod 400 db/mongo/keyfile
 ```
 
+### 3. Start Infrastructure Services
+
+Start all required infrastructure services using Docker Compose:
+
+```bash
+# Start all services (MongoDB, Kafka, Redis, Nginx)
+docker-compose up -d
+
+# To view Kafka UI dashboard
+open http://localhost:8080
+
+# To verify Nginx is running
+curl http://localhost:80
+```
+
 ## Architecture
 
-### Backend
+The application follows a mixed architecture combining principles from both Clean Architecture and Hexagonal Architecture (Ports and Adapters).
 
-The backend is organized using a clean architecture approach:
+### Core Architectural Principles
 
--   **Application Layer**
+1. **Dependency Rule**: Dependencies only point inward. Inner layers don't know about outer layers.
+2. **Separation of Concerns**: Business logic is separated from external concerns.
+3. **Interface Segregation**: External systems are accessed through well-defined interfaces (ports).
+4. **Dependency Inversion**: High-level modules don't depend on low-level modules. Both depend on abstractions.
 
-    -   Contains ports (interfaces) for communicating with infrastructure services like Kafka and message brokers. Includes interfaces for MessageProducer and MessageConsumer
-    -   Containt domain layer for business logic
-        -   dto that defines the data transfer object
-        -   mapper that defines the mapper for the data transfer object
-        -   usercase that defines the business logic
+### Layer Structure
 
--   **Component Layer**
+#### 1. Domain Layer (`/domain`)
 
-    -   Includes `appctx` for application context management
+-   Core business entities and rules
+-   No dependencies on other layers
+-   Contains:
+    -   Entities (core business objects)
+    -   Value objects
+    -   Domain events
+    -   Domain interfaces
 
--   **Domain Layer**
+#### 2. Application Layer (`/application`)
 
-    -   Contains core business entities and logic for domain including
-        -   entity that defines the structure of the data
-        -   repository that defines the operations on the data
-        -   service that defines the business logic
+-   Application-specific business rules
+-   Orchestrates domain objects
+-   Contains:
+    -   Use cases (business operations)
+    -   Ports (interfaces for external systems)
+    -   DTOs and mappers
+    -   Application services
 
--   **Infrastructure Layer**
+#### 3. Interface Adapters
 
-    -   Implements interfaces defined in the application layer
-    -   Connects to external services (Kafka, Redis, MongoDB)
+-   **API Layer** (`/api`)
+    -   REST API handlers
+    -   Request/Response models
+    -   Route definitions
+-   **Repository Layer** (`/repository`)
+    -   Database implementations
+    -   Data access patterns
+    -   Query implementations
 
--   **Repository Layer**
+#### 4. Infrastructure Layer (`/infrastructure`)
 
-    -   Implements interfaces defined in the repository layer, with the implementation SQL queries database
-    -   Connects to external services (MongoDB, PostgreSQL, etc)
+-   External systems implementations
+-   Framework integrations
+-   Contains:
+    -   Kafka implementation
+    -   Database connections
+    -   External service clients
 
--   **Service Layer**
+#### 5. Supporting Components
 
-    -   Implements interfaces defined in the service layer, with the implementation of the sample business logic
+-   **Component Layer** (`/component`)
+    -   Application context
+    -   Dependency injection
+    -   Shared components
+-   **Config Layer** (`/config`)
+    -   Configuration management
+    -   Environment settings
+-   **Middleware** (`/middleware`)
+    -   HTTP middleware
+    -   Request processing
+-   **WebSocket** (`/websocket`)
+    -   Real-time communication
+    -   Connection management
 
--   **Main Application**
+### Ports and Adapters Pattern
 
-    -   Entry point that wires everything together
+#### Ports (Interfaces)
 
--   **WebSocket**
-    -   Handles real-time notifications
-    -   Dispatch notification to the client, contains the logic business for dispatching notification to the client
-    -   Handler that is custom for application to adapt the business logic to the websocket
-    -   Common file for websocket server, router, connection. It should be move to sdk
+-   Located in application layer with `_port` suffix
+-   Define how the application interacts with external systems
+-   Example: `messaging_port` for Kafka interaction
 
-### Frontend (Web Client)
+#### Adapters (Implementations)
 
-A Next.js application for real-time notifications:
+-   Located in infrastructure and repository layers
+-   Implement the port interfaces
+-   Connect to external systems
+-   Example: Kafka consumer/producer implementations
 
--   Connects to WebSocket server for real-time updates
--   Displays notifications with toast alerts
--   Provides a dashboard interface
+### Technology Stack
 
-## Technology Stack
+#### Backend
 
--   **Backend**
+-   Go (Golang)
+-   MongoDB (Replica Set)
+-   Kafka for message streaming
+-   Redis for caching
+-   WebSockets for real-time communication
 
-    -   Go (Golang)
-    -   MongoDB (Replica Set)
-    -   Kafka for message streaming
-    -   Redis for caching
-    -   WebSockets for real-time communication
+#### Frontend
 
--   **Frontend**
-    -   Next.js
-    -   TypeScript
-    -   Tailwind CSS
-    -   React Hot Toast
+-   Next.js
+-   TypeScript
+-   Tailwind CSS
+-   React Hot Toast
 
 ## Running the Application
 
-### Backend
+### 1. Backend Services
 
 ```bash
 # Run the customer service
 cd customer
 make run-with-env
-```
 
-```bash
-# Run the order service
+# Run the order service (in a different terminal)
 cd order
 make run-with-env
 ```
 
-### Frontend
+### 2. Frontend Development
 
 ```bash
 # Navigate to web directory
@@ -125,14 +166,34 @@ npm install
 npm run dev
 ```
 
+Access options:
+
+1. Direct: `http://localhost:3000`
+2. Via Nginx: `http://localhost`
+
 ### WebSocket Connection
 
-The WebSocket server runs on port 8382. The frontend automatically connects to:
+WebSocket server runs on port 8382:
 
 ```
 ws://localhost:8382/notifications
 ```
 
-## Testing
+### Kafka Management
 
-A test HTML page is provided at `/web/public/test.html` for testing the WebSocket connection manually.
+Access Kafka UI dashboard:
+
+```
+http://localhost:8080
+```
+
+Monitor:
+
+-   Topics
+-   Consumer groups
+-   Messages
+-   Brokers status
+
+### Testing
+
+A test HTML page is available at `/web/public/test.html` for testing WebSocket connections manually.

@@ -58,9 +58,9 @@ func (n *NotificationDispatcher) DispatchToUser(userID string, notification *dom
 			continue
 		}
 
-		err2 := n.webSocketHandler.pushMessageToDevice(con, outputMsg.toString())
-		if err2 != nil {
-			return err2
+		err = n.webSocketHandler.pushMessageToDevice(con, outputMsg.toString())
+		if err != nil {
+			return err
 		}
 	}
 	return nil

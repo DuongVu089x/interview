@@ -40,10 +40,16 @@ type RetryConfig struct {
 
 // ConsumerConfig holds Kafka consumer configuration
 type ConsumerConfig struct {
-	BootstrapServers string
-	SecurityProtocol string
-	GroupID          string
-	AutoOffsetReset  string
+	BootstrapServers            string
+	SecurityProtocol            string
+	GroupID                     string
+	AutoOffsetReset             string
+	SessionTimeoutMs            int
+	HeartbeatIntervalMs         int
+	MaxPollIntervalMs           int
+	PartitionAssignmentStrategy string
+	EnableAutoCommit            bool
+	AutoCommitIntervalMs        int
 }
 
 // NewConfigMap converts our config to Kafka's ConfigMap
@@ -58,10 +64,15 @@ func (c *ProducerConfig) NewConfigMap() *kafka.ConfigMap {
 // NewConsumerConfigMap converts our config to Kafka's ConfigMap
 func (c *ConsumerConfig) NewConfigMap() *kafka.ConfigMap {
 	return &kafka.ConfigMap{
-		"bootstrap.servers":  c.BootstrapServers,
-		"security.protocol":  c.SecurityProtocol,
-		"group.id":           c.GroupID,
-		"auto.offset.reset":  c.AutoOffsetReset,
-		"enable.auto.commit": true,
+		"bootstrap.servers":             c.BootstrapServers,
+		"security.protocol":             c.SecurityProtocol,
+		"group.id":                      c.GroupID,
+		"auto.offset.reset":             c.AutoOffsetReset,
+		"enable.auto.commit":            c.EnableAutoCommit,
+		"session.timeout.ms":            c.SessionTimeoutMs,
+		"heartbeat.interval.ms":         c.HeartbeatIntervalMs,
+		"max.poll.interval.ms":          c.MaxPollIntervalMs,
+		"partition.assignment.strategy": c.PartitionAssignmentStrategy,
+		"auto.commit.interval.ms":       c.AutoCommitIntervalMs,
 	}
 }

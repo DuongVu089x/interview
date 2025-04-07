@@ -60,13 +60,6 @@ func LoadConfig() *Config {
 			BootstrapServers: getEnv("KAFKA_BOOTSTRAP_SERVERS", ""),
 			SecurityProtocol: getEnv("KAFKA_SECURITY_PROTOCOL", ""),
 			DefaultTopic:     getEnv("KAFKA_DEFAULT_TOPIC", ""),
-			// Topics: []TopicConfig{
-			// 	{
-			// 		Name:              getEnv("KAFKA_TOPIC_NAME", ""),
-			// 		NumPartitions:     getEnvAsInt("KAFKA_TOPIC_PARTITIONS", 3),
-			// 		ReplicationFactor: getEnvAsInt("KAFKA_TOPIC_REPLICATION_FACTOR", 3),
-			// 	},
-			// },
 		},
 		Redis: RedisConfig{
 			Addr:     getEnv("REDIS_ADDR", ""),

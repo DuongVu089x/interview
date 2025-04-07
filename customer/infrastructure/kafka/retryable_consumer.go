@@ -7,7 +7,7 @@ import (
 	"math"
 	"time"
 
-	port "github.com/DuongVu089x/interview/customer/application/port"
+	port "github.com/DuongVu089x/interview/customer/application/messaging_port"
 	domain "github.com/DuongVu089x/interview/customer/domain"
 )
 
@@ -24,6 +24,7 @@ type RetryableConsumer struct {
 	baseConsumer  *Consumer
 	retryProducer *Producer
 	retryConfig   RetryConfig
+	handlers      map[string]func(domain.Message) error
 }
 
 // NewRetryableConsumer creates a new consumer with retry functionality
@@ -92,6 +93,7 @@ func NewRetryableConsumer(consumerConfig ConsumerConfig, producerConfig Producer
 		baseConsumer:  consumer,
 		retryProducer: producer,
 		retryConfig:   retryConfig,
+		handlers:      make(map[string]func(domain.Message) error),
 	}, nil
 }
 
@@ -103,7 +105,7 @@ func (rc *RetryableConsumer) RegisterHandler(topic string, handler func(msg doma
 	dlqTopic := topic + rc.retryConfig.DLQTopicSuffix
 
 	// Ensure retry topics are created
-	topicConfig := TopicConfig{
+	retryTopicConfig := TopicConfig{
 		Name:              retryTopic,
 		NumPartitions:     3,
 		ReplicationFactor: 3,
@@ -118,7 +120,7 @@ func (rc *RetryableConsumer) RegisterHandler(topic string, handler func(msg doma
 	CreateTopics(ProducerConfig{
 		BootstrapServers: rc.retryConfig.CloneProducerConfig.BootstrapServers,
 		SecurityProtocol: rc.retryConfig.CloneProducerConfig.SecurityProtocol,
-		Topics:           []TopicConfig{topicConfig, dlqTopicConfig},
+		Topics:           []TopicConfig{retryTopicConfig, dlqTopicConfig},
 	})
 
 	// Register the handler with retry functionality
@@ -130,13 +132,17 @@ func (rc *RetryableConsumer) RegisterHandler(topic string, handler func(msg doma
 	}
 
 	// Register the handler with retry topic
-	fmt.Printf("Registering handler for retry topic: %s\n", retryTopic)
 	err = rc.safeRegisterHandler(retryTopic, func(msg domain.Message) error {
 		return rc.processRetry(msg, handler, topic)
 	})
 	if err != nil {
 		return err
 	}
+
+	// err = rc.baseConsumer.Subscribe()
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -271,6 +277,14 @@ func (rc *RetryableConsumer) sendToDLQ(msg domain.Message, processingErr error, 
 
 	// Send to DLQ immediately
 	return rc.retryProducer.Publish(dlqMsg)
+}
+
+// Subscribe subscribes to all registered topics
+func (rc *RetryableConsumer) Subscribe() error {
+	if rc.baseConsumer == nil {
+		return fmt.Errorf("consumer not initialized")
+	}
+	return rc.baseConsumer.Subscribe()
 }
 
 // Start starts consuming messages with retry functionality

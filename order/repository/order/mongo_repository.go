@@ -18,15 +18,16 @@ func NewMongoRepository(db *mongo.Client) domainorder.Repository {
 	}
 }
 
-func (r *MongoRepository) GetOrderByCustomerID(customerID string, conditions map[string]interface{}) ([]domainorder.Order, error) {
+func (r *MongoRepository) GetOrder(id int64) (*domainorder.Order, error) {
+	var order domainorder.Order
+	err := r.collection.FindOne(context.Background(), domainorder.Order{OrderID: id}).Decode(&order)
+	return &order, err
+}
+
+func (r *MongoRepository) GetOrders(conditions domainorder.Order) ([]domainorder.Order, error) {
 	var orders []domainorder.Order
 
-	query := bson.M{"userId": customerID}
-	if status, ok := conditions["status"]; ok {
-		query["status"] = status
-	}
-
-	cursor, err := r.collection.Find(context.Background(), query)
+	cursor, err := r.collection.Find(context.Background(), conditions)
 	if err != nil {
 		return nil, err
 	}
@@ -42,12 +43,6 @@ func (r *MongoRepository) GetOrderByCustomerID(customerID string, conditions map
 func (r *MongoRepository) CreateOrder(order *domainorder.Order) error {
 	_, err := r.collection.InsertOne(context.Background(), order)
 	return err
-}
-
-func (r *MongoRepository) GetOrder(id string) (*domainorder.Order, error) {
-	var order domainorder.Order
-	err := r.collection.FindOne(context.Background(), bson.M{"order_id": id}).Decode(&order)
-	return &order, err
 }
 
 func (r *MongoRepository) UpdateOrder(order *domainorder.Order) error {

@@ -80,3 +80,14 @@ func (wsr *wsRoute) GetConnection(conId int) *Connection {
 	defer wsr.conMapMutex.Unlock()
 	return wsr.connMap[conId]
 }
+
+func (wsr *wsRoute) GetConnectionMap() map[int]*Connection {
+	wsr.conMapMutex.Lock()
+	defer wsr.conMapMutex.Unlock()
+
+	var tempMap = make(map[int]*Connection, len(wsr.connMap))
+	for id, conn := range wsr.connMap {
+		tempMap[id] = conn
+	}
+	return tempMap
+}

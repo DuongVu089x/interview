@@ -15,7 +15,7 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 export const WebSocketProvider = ({
   children,
   autoConnect = true,
-  url = 'ws://localhost:8382/notifications',
+  url = 'ws://localhost/notifications',
   userId = 'U0001' // Default user ID
 }: {
   children: ReactNode;

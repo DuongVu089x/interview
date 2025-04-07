@@ -1,8 +1,8 @@
 package order
 
 type Repository interface {
-	GetOrderByCustomerID(customerID string, conditions map[string]any) ([]Order, error)
-	GetOrder(id string) (*Order, error)
+	GetOrder(id int64) (*Order, error)
+	GetOrders(conditions Order) ([]Order, error)
 
 	CreateOrder(order *Order) error
 	UpdateOrder(order *Order) error

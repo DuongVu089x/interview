@@ -5,6 +5,7 @@ import (
 )
 
 func RegisterRoutes(e *echo.Echo, handler *Handler) {
-	e.POST("/order", handler.CreateOrder)
 	e.GET("/order/:id", handler.GetOrder)
+	e.GET("/user/:userId/orders", handler.GetOrdersByUserID)
+	e.POST("/order", handler.CreateOrder)
 }

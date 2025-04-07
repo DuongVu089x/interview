@@ -1,5 +1,13 @@
 services:
 
+  # config for nginx
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+
 #   # config for nginx
 #   nginx:
 #     build:

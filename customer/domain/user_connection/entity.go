@@ -3,6 +3,7 @@ package userconnection
 import (
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -18,10 +19,17 @@ type UserConnection struct {
 	UserID        string `json:"userId,omitempty" bson:"user_id,omitempty"`
 	UserAgent     string `json:"userAgent,omitempty" bson:"user_agent,omitempty"`
 
-	ConnectedTime *time.Time         `json:"connectedTime,omitempty" bson:"connected_time,omitempty"`
-	Status        ConStatusEnumValue `json:"status,omitempty" bson:"status,omitempty"`
+	ConnectedTime   *time.Time `json:"connectedTime,omitempty" bson:"connected_time,omitempty"`
+	LastMessageTime *time.Time `json:"lastMessageTime,omitempty" bson:"last_message_time,omitempty"`
+
+	DisconnectedTime   *time.Time `json:"disconnectedTime,omitempty" bson:"disconnected_time,omitempty"`
+	DisconnectedReason string     `json:"disconnectedReason,omitempty" bson:"disconnected_reason,omitempty"`
+
+	Status ConStatusEnumValue `json:"status,omitempty" bson:"status,omitempty"`
 
 	ConnectionLocalID int `json:"connectionLocalId,omitempty" bson:"connection_local_id,omitempty"` // for websocket local connection id
+
+	ComplexQuery []bson.M `json:"-" bson:"$and,omitempty"`
 }
 
 type ConStatusEnumValue string

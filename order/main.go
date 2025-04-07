@@ -52,6 +52,7 @@ func initReadDB(cfg *config.Config) (*mongo.Client, error) {
 func initKafkaProducer(cfg *config.Config) (*kafka.Producer, error) {
 	// Convert config format
 	kafkaTopics := make([]kafka.TopicConfig, 0, len(cfg.Kafka.Topics))
+
 	for _, topic := range cfg.Kafka.Topics {
 		kafkaTopics = append(kafkaTopics, kafka.TopicConfig{
 			Name:              topic.Name,
@@ -67,13 +68,12 @@ func initKafkaProducer(cfg *config.Config) (*kafka.Producer, error) {
 		Topics:           kafkaTopics,
 	}
 
-	// // Create topics before producing
-	// err := kafka.CreateTopics(producerConfig)
-	// if err != nil {
-	// 	log.Printf("Warning: Topic creation failed: %s", err)
-	// 	// Continue anyway - topics might already exist
-	// 	return nil, fmt.Errorf("failed to create producer: %s", err)
-	// }
+	// Create topics before producing
+	err := kafka.CreateTopics(producerConfig)
+	if err != nil {
+		log.Printf("Warning: Topic creation failed: %s", err)
+		return nil, fmt.Errorf("failed to create producer: %s", err)
+	}
 
 	producer, err := kafka.NewProducer(producerConfig)
 	if err != nil {
@@ -196,22 +196,28 @@ func main() {
 	}
 
 	// Initialize AppContext
-	app := appctx.NewAppContext(mainDB, readDB, kafkaProducer, nil, redisClient)
+	appctx := appctx.NewAppContext(mainDB, readDB, kafkaProducer, nil, redisClient)
 
 	// Initialize Echo
 	e := echo.New()
 
+	// Add middlewares
 	e.Use(middleware.Recover())
+	e.Use(middleware.ConfigureCORS())
+	e.Use(middleware.RequestLogger())
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "OK"})
 	})
 
 	// Initialize handlers
-	orderHandler := order.NewHandler(app)
+	orderHandler := order.NewHandler(appctx)
 
 	// Register routes
 	order.RegisterRoutes(e, orderHandler)
+
+	// Print all registered routes for debugging
+	middleware.PrintRegisteredRoutes(e)
 
 	// Start server
 	serverAddr := fmt.Sprintf(":%s", cfg.Server.Port)

@@ -14,12 +14,21 @@ func NewOrderService(orderRepo domainorder.Repository) domainorder.Service {
 	return &Service{orderRepo: orderRepo}
 }
 
-func (s *Service) GetOrderByCustomerID(customerID string, conditions map[string]interface{}) ([]domainorder.Order, error) {
-	return s.orderRepo.GetOrderByCustomerID(customerID, conditions)
+func (s *Service) GetOrder(id int64) (*domainorder.Order, error) {
+	return s.orderRepo.GetOrder(id)
 }
 
-func (s *Service) GetOrder(id string) (*domainorder.Order, error) {
-	return s.orderRepo.GetOrder(id)
+func (s *Service) GetOrderByCustomerID(customerID string, conditions map[string]any) ([]domainorder.Order, error) {
+
+	query := domainorder.Order{
+		UserID: customerID,
+	}
+
+	if conditions["status"] != "" && conditions["status"] != nil {
+		query.Status = domainorder.OrderStatus(conditions["status"].(string))
+	}
+
+	return s.orderRepo.GetOrders(query)
 }
 
 func (s *Service) CalculateTotal(items []domainorder.OrderItem) float64 {
@@ -45,7 +54,7 @@ func (s *Service) DeleteOrder(id string) error {
 func (s *Service) CalculateTotalOfCustomer(customerID string, status domainorder.OrderStatus) (float64, error) {
 	total := 0.0
 
-	orders, err := s.GetOrderByCustomerID(customerID, map[string]interface{}{"status": status})
+	orders, err := s.GetOrderByCustomerID(customerID, map[string]any{"status": status})
 	if err != nil {
 		return 0, err
 	}
