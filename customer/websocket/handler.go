@@ -117,7 +117,7 @@ func (h *WebSocketHandler) OnWSConnect(conn *Connection) error {
 	var outputMsg *WSOutputMessage
 	if err != nil {
 		outputMsg = &WSOutputMessage{
-			Topic: TopicEnum.NONE,
+			Topic: TOPIC_NONE,
 			Content: map[string]any{
 				"status":  "error",
 				"message": "Failed to create user connection",
@@ -126,7 +126,7 @@ func (h *WebSocketHandler) OnWSConnect(conn *Connection) error {
 	} else {
 		conn.Attached[USER_CON_ID] = userConn.ID
 		outputMsg = &WSOutputMessage{
-			Topic: TopicEnum.CONNECTED,
+			Topic: TOPIC_CONNECTED,
 			Content: map[string]any{
 				"status":  "connected",
 				"data":    userConn,
@@ -134,7 +134,7 @@ func (h *WebSocketHandler) OnWSConnect(conn *Connection) error {
 			},
 		}
 	}
-	err = h.pushMessageToDevice(conn, outputMsg.toString())
+	err = h.pushMessageToDevice(conn, outputMsg.ToString())
 	if err != nil {
 		fmt.Printf("OnWSConnect Error pushing message to device: %s", err)
 	}
@@ -146,13 +146,13 @@ func (h *WebSocketHandler) OnWSMessage(conn *Connection, message string) error {
 
 	if conn.Attached[USER_CON_ID] == nil {
 		outputMsg := &WSOutputMessage{
-			Topic: TopicEnum.NONE,
+			Topic: TOPIC_NONE,
 			Content: map[string]any{
 				"status":  "error",
 				"message": "User connection not found",
 			},
 		}
-		err := h.pushMessageToDevice(conn, outputMsg.toString())
+		err := h.pushMessageToDevice(conn, outputMsg.ToString())
 		if err != nil {
 			fmt.Printf("OnWSMessage Error pushing message to device: %s", err)
 		}
@@ -163,38 +163,38 @@ func (h *WebSocketHandler) OnWSMessage(conn *Connection, message string) error {
 	err := json.Unmarshal([]byte(message), &msg)
 	if err != nil {
 		outputMsg := &WSOutputMessage{
-			Topic: TopicEnum.NONE,
+			Topic: TOPIC_NONE,
 			Content: map[string]interface{}{
 				"status":  "error",
 				"message": "Invalid message format",
 			},
 		}
 
-		err = h.pushMessageToDevice(conn, outputMsg.toString())
+		err = h.pushMessageToDevice(conn, outputMsg.ToString())
 		if err != nil {
 			fmt.Printf("OnWSMessage Error pushing message to device: %s", err)
 		}
 		return err
 	}
 
-	if string(msg.Topic) == "" {
+	if msg.Topic == "" {
 		return errors.New("topic is none")
 	}
 
 	switch msg.Topic {
-	case TopicEnum.AUTHORIZATION:
+	case TOPIC_AUTHORIZATION:
 		var data WSAuthorization
 		bytes, _ := json.Marshal(msg.Content)
 		err = json.Unmarshal(bytes, &data)
 		if err != nil {
 			outputMsg := &WSOutputMessage{
-				Topic: TopicEnum.NONE,
+				Topic: TOPIC_NONE,
 				Content: map[string]any{
 					"status":  "error",
 					"message": "Invalid message format",
 				},
 			}
-			err = h.pushMessageToDevice(conn, outputMsg.toString())
+			err = h.pushMessageToDevice(conn, outputMsg.ToString())
 			if err != nil {
 				fmt.Printf("OnWSMessage Error pushing message to device: %s", err)
 			}
@@ -214,20 +214,20 @@ func (h *WebSocketHandler) OnWSMessage(conn *Connection, message string) error {
 		})
 		if err != nil {
 			outputMsg := &WSOutputMessage{
-				Topic: TopicEnum.NONE,
+				Topic: TOPIC_NONE,
 				Content: map[string]any{
 					"status":  "error",
 					"message": "Failed to update user connection",
 				},
 			}
-			err = h.pushMessageToDevice(conn, outputMsg.toString())
+			err = h.pushMessageToDevice(conn, outputMsg.ToString())
 			if err != nil {
 				fmt.Printf("OnWSMessage Error pushing message to device: %s", err)
 			}
 			return err
 		}
 		outputMsg := &WSOutputMessage{
-			Topic: TopicEnum.AUTHORIZATION,
+			Topic: TOPIC_AUTHORIZATION,
 			Content: map[string]any{
 				"status":    "success",
 				"message":   "Authorization successful",
@@ -235,7 +235,7 @@ func (h *WebSocketHandler) OnWSMessage(conn *Connection, message string) error {
 			},
 			Callback: msg.Callback,
 		}
-		err = h.pushMessageToDevice(conn, outputMsg.toString())
+		err = h.pushMessageToDevice(conn, outputMsg.ToString())
 		if err != nil {
 			fmt.Printf("OnWSMessage Error pushing message to device: %s", err)
 		}
@@ -295,14 +295,13 @@ func (h *WebSocketHandler) cleanUserConnection() {
 	now := time.Now()
 
 	outputMsg := &WSOutputMessage{
-		Topic: TopicEnum.CONNECTION,
+		Topic: TOPIC_CONNECTION,
 		Content: map[string]interface{}{
 			"action":     "PING",
 			"serverTime": now,
 		},
 	}
 	for _, conn := range connMap {
-
 		conn.RLock()
 		userID := conn.Attached[USER_ID]
 		connTime := conn.Attached[CONNECTED_TIME]
@@ -316,20 +315,20 @@ func (h *WebSocketHandler) cleanUserConnection() {
 			// Close connection if client hasn't authorized within 3 minutes of connecting
 			if connectedTime.Add(180 * time.Second).Before(now) {
 				outputMsg := &WSOutputMessage{
-					Topic: TopicEnum.CONNECTION,
+					Topic: TOPIC_CONNECTION,
 					Content: map[string]interface{}{
 						"status": "CLOSED",
 						"reason": "Too long not authorized.",
 					},
 				}
-				h.pushMessageToDevice(conn, outputMsg.toString())
+				h.pushMessageToDevice(conn, outputMsg.ToString())
 				conn.Close()
 				return
 			}
 		}
 
 		// send ping message to device
-		err := h.pushMessageToDevice(conn, outputMsg.toString())
+		err := h.pushMessageToDevice(conn, outputMsg.ToString())
 		if err != nil {
 			conn.Close()
 			if cid != nil {
@@ -366,53 +365,4 @@ func (h *WebSocketHandler) cleanUserConnection() {
 			DisconnectedReason: "Closed by cleaning process.",
 		})
 	}
-}
-
-// WSOutputMessage
-type TopicEnumValue string
-
-// WSInputMessage
-type WSInputMessage struct {
-	Topic    TopicEnumValue `json:"topic,omitempty"`
-	Content  map[string]any `json:"content,omitempty"`
-	Callback string         `json:"callback,omitempty"`
-}
-
-type WSOutputMessage struct {
-	Topic    TopicEnumValue `json:"topic,omitempty"`
-	Content  map[string]any `json:"content,omitempty"`
-	Callback string         `json:"callback,omitempty"`
-}
-
-type WSAuthorization struct {
-	SessionToken string `json:"session_token"`
-	Type         string `json:"type"`
-	UserID       string `json:"user_id"`
-}
-
-func (o *WSOutputMessage) toString() string {
-	bytes, err := json.Marshal(o)
-	if err != nil {
-		return ""
-	}
-	return string(bytes)
-}
-
-// Define topic enum values as package variables
-var TopicEnum = struct {
-	NONE          TopicEnumValue
-	CONNECTED     TopicEnumValue
-	CONNECTION    TopicEnumValue
-	PING          TopicEnumValue
-	AUTHORIZATION TopicEnumValue
-	ANNOUNCEMENT  TopicEnumValue
-	EVENT         TopicEnumValue
-}{
-	NONE:          "NONE",
-	CONNECTED:     "CONNECTED",
-	CONNECTION:    "CONNECTION",
-	PING:          "PING",
-	AUTHORIZATION: "AUTHORIZATION",
-	ANNOUNCEMENT:  "ANNOUNCEMENT",
-	EVENT:         "EVENT",
 }

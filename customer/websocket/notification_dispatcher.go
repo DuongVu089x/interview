@@ -38,7 +38,7 @@ func (n *NotificationDispatcher) DispatchToUser(userID string, notification *dom
 
 	// Create the notification message
 	outputMsg := &WSOutputMessage{
-		Topic: TopicEnum.ANNOUNCEMENT,
+		Topic: TOPIC_ANNOUNCEMENT,
 		Content: map[string]any{
 			"topic":       notification.Topic,
 			"title":       notification.Title,
@@ -58,7 +58,7 @@ func (n *NotificationDispatcher) DispatchToUser(userID string, notification *dom
 			continue
 		}
 
-		err = n.webSocketHandler.pushMessageToDevice(con, outputMsg.toString())
+		err = n.webSocketHandler.pushMessageToDevice(con, outputMsg.ToString())
 		if err != nil {
 			return err
 		}
