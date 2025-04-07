@@ -22,7 +22,7 @@ services:
 
   # config for mongodb
   internal-mongodb1:
-    image: mongo:latest
+    image: mongo:8.0.0
     container_name: internal-mongodb1
     hostname: internal-mongodb1
     command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27020", "--keyFile", "/etc/mongodb/keyfile"]
@@ -39,7 +39,7 @@ services:
       - internal-mongo-network
 
   internal-mongodb2:
-    image: mongo:latest
+    image: mongo:8.0.0
     container_name: internal-mongodb2
     hostname: internal-mongodb2
     command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27018", "--keyFile", "/etc/mongodb/keyfile"]
@@ -56,7 +56,7 @@ services:
       - internal-mongo-network
 
   internal-mongodb3:
-    image: mongo:latest
+    image: mongo:8.0.0
     container_name: internal-mongodb3
     hostname: internal-mongodb3
     command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27019", "--keyFile", "/etc/mongodb/keyfile"]
@@ -74,7 +74,7 @@ services:
 
   # This service initializes the replica set
   mongo-init:
-    image: mongo:latest
+    image: mongo:8.0.0
     container_name: internal-mongo-init
     depends_on:
       - internal-mongodb1
@@ -183,7 +183,7 @@ services:
 
 
   redis:
-    image: redis:latest
+    image: redis:7.4.0
     container_name: internal-redis
     hostname: internal-redis
     volumes:
