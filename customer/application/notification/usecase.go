@@ -7,16 +7,20 @@ import (
 // ReadUseCase handles read operations that don't require the dispatcher
 type ReadUseCase struct {
 	notificationRepository domainnotification.Repository
+	mapper                 *Mapper
 }
 
 func NewReadUseCase(notificationRepository domainnotification.Repository) *ReadUseCase {
-	return &ReadUseCase{notificationRepository: notificationRepository}
+	return &ReadUseCase{
+		notificationRepository: notificationRepository,
+		mapper:                 NewMapper(),
+	}
 }
 
 // GetNotificationsResponse represents the response for getting notifications
 type GetNotificationsResponse struct {
-	Notifications []*domainnotification.Notification `json:"notifications"`
-	Total         int64                              `json:"total"`
+	Notifications []*NotificationDTO `json:"notifications"`
+	Total         int64              `json:"total"`
 }
 
 func (u *ReadUseCase) GetNotifications(userId string, page, limit int64) (*GetNotificationsResponse, error) {
@@ -26,14 +30,23 @@ func (u *ReadUseCase) GetNotifications(userId string, page, limit int64) (*GetNo
 		return nil, err
 	}
 
+	// Use mapper to convert domain entities to DTOs
+	dtos := u.mapper.ToDTOList(notifications)
+
 	return &GetNotificationsResponse{
-		Notifications: notifications,
+		Notifications: dtos,
 		Total:         int64(len(notifications)),
 	}, nil
 }
 
-func (u *ReadUseCase) GetNotification(id string) (*domainnotification.Notification, error) {
-	return u.notificationRepository.GetNotification(id)
+func (u *ReadUseCase) GetNotification(id string) (*NotificationDTO, error) {
+	notification, err := u.notificationRepository.GetNotification(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use mapper to convert domain entity to DTO
+	return u.mapper.ToDTO(notification), nil
 }
 
 func (u *ReadUseCase) MarkAsReadNotification(id string) error {
@@ -44,24 +57,32 @@ func (u *ReadUseCase) MarkAsReadNotification(id string) error {
 type WriteUseCase struct {
 	notificationRepository domainnotification.Repository
 	notifier               NotificationDispatcher
+	mapper                 *Mapper
 }
 
+// NotificationDispatcher interface defines how to dispatch notifications
 type NotificationDispatcher interface {
-	DispatchToUser(userID string, notification *domainnotification.Notification) error
+	DispatchToUser(userID string, notification *NotificationDTO) error
 }
 
 func NewWriteUseCase(notificationRepository domainnotification.Repository, notifier NotificationDispatcher) *WriteUseCase {
 	return &WriteUseCase{
 		notificationRepository: notificationRepository,
 		notifier:               notifier,
+		mapper:                 NewMapper(),
 	}
 }
 
-func (u *WriteUseCase) CreateNotification(notification *domainnotification.Notification) error {
+func (u *WriteUseCase) CreateNotification(request *CreateNotificationRequest) error {
+	// Use mapper to convert DTO to domain entity
+	notification := u.mapper.ToEntity(*request)
+
 	err := u.notificationRepository.CreateNotification(notification)
 	if err != nil {
 		return err
 	}
 
-	return u.notifier.DispatchToUser(notification.UserId, notification)
+	// Convert back to DTO for dispatching
+	notificationDTO := u.mapper.ToDTO(notification)
+	return u.notifier.DispatchToUser(notification.UserID, notificationDTO)
 }

@@ -12,7 +12,7 @@ type Notification struct {
 	LastUpdatedTime *time.Time          `json:"lastUpdatedTime,omitempty" bson:"last_updated_time,omitempty"`
 
 	Code   string `json:"code,omitempty" bson:"code,omitempty" `
-	UserId string `json:"userId,omitempty" bson:"user_id,omitempty" `
+	UserID string `json:"userId,omitempty" bson:"user_id,omitempty" `
 	IsRead *bool  `json:"isRead,omitempty" bson:"is_read,omitempty" `
 
 	Topic       string `json:"topic,omitempty" bson:"topic,omitempty"`

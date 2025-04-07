@@ -77,10 +77,17 @@ The application follows a mixed architecture combining principles from both Clea
     -   REST API handlers
     -   Request/Response models
     -   Route definitions
+-   **Service Layer** (`/service`)
+    -   Implementation of domain service interfaces
+    -   Business logic implementation
+    -   Orchestration of domain objects
+    -   Interacts with repositories and domain objects
 -   **Repository Layer** (`/repository`)
     -   Database implementations
     -   Data access patterns
     -   Query implementations
+    -   Persistence layer adapters for domain entities
+    -   Implements repository interfaces defined in domain layer
 
 #### 4. Infrastructure Layer (`/infrastructure`)
 
@@ -114,6 +121,7 @@ The application follows a mixed architecture combining principles from both Clea
 -   Located in application layer with `_port` suffix
 -   Define how the application interacts with external systems
 -   Example: `messaging_port` for Kafka interaction
+-   Domain interfaces like `Repository` and `Service` in the domain layer
 
 #### Adapters (Implementations)
 
@@ -121,6 +129,8 @@ The application follows a mixed architecture combining principles from both Clea
 -   Implement the port interfaces
 -   Connect to external systems
 -   Example: Kafka consumer/producer implementations
+-   Example: `MongoRepository` in repository layer implementing the domain `Repository` interface
+-   Example: Service implementations in service layer implementing domain service interfaces
 
 ### Technology Stack
 
@@ -138,6 +148,36 @@ The application follows a mixed architecture combining principles from both Clea
 -   TypeScript
 -   Tailwind CSS
 -   React Hot Toast
+
+### Service vs. Use Case Layer
+
+#### Service Layer Rules
+
+-   **Domain-Specific**: Each service is dedicated to a single domain entity (e.g., `OrderService` for the Order domain)
+-   **Optional Layer**: May be omitted in simpler applications where domain logic is minimal
+-   **Implementation Rules**:
+    -   Implements domain service interfaces defined in the domain layer
+    -   Contains domain-specific business logic and validation
+    -   Typically works with a single repository type
+    -   Should not orchestrate multiple domain services
+
+#### Use Case Layer Rules
+
+-   **Cross-Domain**: Orchestrates operations across multiple domains (e.g., `CreateOrderUseCase` might involve Order, Customer, and Payment domains)
+-   **Higher Abstraction**: Implements application-specific business flows
+-   **Implementation Rules**:
+    -   Located in the application layer
+    -   May coordinate multiple domain services
+    -   Handles transaction boundaries
+    -   Implements application-level validation and business rules
+    -   Performs data transformations between the domain and external layers
+
+When to use which:
+
+-   Use **Service Layer** when the logic is specific to a single domain entity
+-   Use **Use Case Layer** when orchestrating operations across multiple domains
+-   Complex applications typically have both layers
+-   Simpler applications might only need one of these layers
 
 ## Running the Application
 

@@ -3,7 +3,7 @@ package websocket
 import (
 	"errors"
 
-	domainnotification "github.com/DuongVu089x/interview/customer/domain/notification"
+	notificationapp "github.com/DuongVu089x/interview/customer/application/notification"
 	domainuserconnection "github.com/DuongVu089x/interview/customer/domain/user_connection"
 )
 
@@ -20,7 +20,7 @@ func NewNotificationDispatcher(wsServer *WSServer, routePath string, webSocketHa
 }
 
 // DispatchToUser sends a notification to all active connections for a specific user
-func (n *NotificationDispatcher) DispatchToUser(userID string, notification *domainnotification.Notification) error {
+func (n *NotificationDispatcher) DispatchToUser(userID string, notification *notificationapp.NotificationDTO) error {
 	// Get the websocket route
 	route := n.wsServer.GetRoute(n.routePath)
 	if route == nil {

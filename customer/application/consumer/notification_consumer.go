@@ -6,7 +6,6 @@ import (
 	notificationusecase "github.com/DuongVu089x/interview/customer/application/notification"
 	"github.com/DuongVu089x/interview/customer/component/appctx"
 	"github.com/DuongVu089x/interview/customer/domain"
-	notificationdomain "github.com/DuongVu089x/interview/customer/domain/notification"
 	notificationrepository "github.com/DuongVu089x/interview/customer/repository/notification"
 	userconnrepository "github.com/DuongVu089x/interview/customer/repository/user_connection"
 	"github.com/DuongVu089x/interview/customer/websocket"
@@ -49,12 +48,12 @@ func (c *NotificationConsumer) Setup() error {
 		notificationDispatcher := websocket.NewNotificationDispatcher(wsServer, "/notifications", notificationHandler)
 		notificationUseCase := notificationusecase.NewWriteUseCase(notificationRepository, notificationDispatcher)
 
-		return notificationUseCase.CreateNotification(&notificationdomain.Notification{
+		return notificationUseCase.CreateNotification(&notificationusecase.CreateNotificationRequest{
 			Topic:       "order-created",
 			Title:       "Order Created",
 			Description: "Order created successfully",
 			Link:        fmt.Sprintf("localhost:8081/order/%s", payloadMap["order_id"].(string)),
-			UserId:      payloadMap["user_id"].(string),
+			UserID:      payloadMap["user_id"].(string),
 		})
 	})
 
