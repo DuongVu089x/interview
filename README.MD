@@ -38,6 +38,62 @@ open http://localhost:8080
 curl http://localhost:80
 ```
 
+## Running the Application
+
+### 1. Backend Services
+
+```bash
+# Run the customer service
+cd customer
+make run-with-env
+
+# Run the order service (in a different terminal)
+cd order
+make run-with-env
+```
+
+### 2. Frontend Development
+
+```bash
+# Navigate to web directory
+cd web
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Access the application via Nginx:
+
+```
+http://localhost
+```
+
+### WebSocket Connection
+
+WebSocket server runs on port 8382:
+
+```
+ws://localhost:8382/notifications
+```
+
+### Kafka Management
+
+Access Kafka UI dashboard:
+
+```
+http://localhost:8080
+```
+
+Monitor:
+
+-   Topics
+-   Consumer groups
+-   Messages
+-   Brokers status
+
 ## Architecture
 
 The application follows a mixed architecture combining principles from both Clean Architecture and Hexagonal Architecture (Ports and Adapters).
@@ -178,62 +234,3 @@ When to use which:
 -   Use **Use Case Layer** when orchestrating operations across multiple domains
 -   Complex applications typically have both layers
 -   Simpler applications might only need one of these layers
-
-## Running the Application
-
-### 1. Backend Services
-
-```bash
-# Run the customer service
-cd customer
-make run-with-env
-
-# Run the order service (in a different terminal)
-cd order
-make run-with-env
-```
-
-### 2. Frontend Development
-
-```bash
-# Navigate to web directory
-cd web
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-Access options:
-
-1. Direct: `http://localhost:3000`
-2. Via Nginx: `http://localhost`
-
-### WebSocket Connection
-
-WebSocket server runs on port 8382:
-
-```
-ws://localhost:8382/notifications
-```
-
-### Kafka Management
-
-Access Kafka UI dashboard:
-
-```
-http://localhost:8080
-```
-
-Monitor:
-
--   Topics
--   Consumer groups
--   Messages
--   Brokers status
-
-### Testing
-
-A test HTML page is available at `/web/public/test.html` for testing WebSocket connections manually.
