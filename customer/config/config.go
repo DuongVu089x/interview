@@ -7,11 +7,43 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	MongoDB MongoDBConfig
-	Kafka   KafkaConfig
-	Redis   RedisConfig
-	Server  ServerConfig
-	GRPC    GRPCConfig
+	MongoDB       MongoDBConfig
+	Kafka         KafkaConfig
+	Redis         RedisConfig
+	Server        ServerConfig
+	GRPC          GRPCConfig
+	Observability ObservabilityConfig
+}
+
+// ObservabilityConfig holds all observability-related configuration
+type ObservabilityConfig struct {
+	Jaeger     JaegerConfig
+	Prometheus PrometheusConfig
+	Logging    LoggingConfig
+}
+
+// JaegerConfig holds Jaeger tracing configuration
+type JaegerConfig struct {
+	ServiceName string
+	AgentHost   string
+	AgentPort   string
+	Enabled     bool
+}
+
+// PrometheusConfig holds Prometheus metrics configuration
+type PrometheusConfig struct {
+	Port     string
+	Endpoint string
+}
+
+// LoggingConfig holds logging configuration
+type LoggingConfig struct {
+	Level      string
+	OutputPath string
+	MaxSize    int
+	MaxBackups int
+	MaxAge     int
+	Compress   bool
 }
 
 // MongoDBConfig holds MongoDB configuration
@@ -79,6 +111,26 @@ func LoadConfig() *Config {
 		GRPC: GRPCConfig{
 			Port: getEnv("GRPC_PORT", "50051"),
 		},
+		Observability: ObservabilityConfig{
+			Jaeger: JaegerConfig{
+				ServiceName: getEnv("JAEGER_SERVICE_NAME", "customer-service"),
+				AgentHost:   getEnv("JAEGER_AGENT_HOST", "localhost"),
+				AgentPort:   getEnv("JAEGER_AGENT_PORT", "6831"),
+				Enabled:     getEnvAsBool("JAEGER_ENABLED", true),
+			},
+			Prometheus: PrometheusConfig{
+				Port:     getEnv("PROMETHEUS_PORT", "2112"),
+				Endpoint: getEnv("PROMETHEUS_ENDPOINT", "/metrics"),
+			},
+			Logging: LoggingConfig{
+				Level:      getEnv("LOG_LEVEL", "info"),
+				OutputPath: getEnv("LOG_OUTPUT_PATH", "logs/customer-service.log"),
+				MaxSize:    getEnvAsInt("LOG_MAX_SIZE", 100),  // 100MB
+				MaxBackups: getEnvAsInt("LOG_MAX_BACKUPS", 3), // 3 backups
+				MaxAge:     getEnvAsInt("LOG_MAX_AGE", 28),    // 28 days
+				Compress:   getEnvAsBool("LOG_COMPRESS", true),
+			},
+		},
 	}
 }
 
@@ -98,6 +150,19 @@ func getEnvAsInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+// Helper function to get an environment variable as a boolean with a default value
+func getEnvAsBool(key string, defaultValue bool) bool {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(valueStr)
 	if err != nil {
 		return defaultValue
 	}

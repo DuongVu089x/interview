@@ -13,6 +13,7 @@ import (
 	"github.com/DuongVu089x/interview/customer/api/rest/notification"
 	"github.com/DuongVu089x/interview/customer/application/consumer"
 	"github.com/DuongVu089x/interview/customer/component/appctx"
+	"github.com/DuongVu089x/interview/customer/component/observability"
 	"github.com/DuongVu089x/interview/customer/config"
 	"github.com/DuongVu089x/interview/customer/infrastructure/kafka"
 	"github.com/DuongVu089x/interview/customer/middleware"
@@ -20,6 +21,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.uber.org/zap"
 
 	pb "github.com/DuongVu089x/interview/customer/proto/customer"
 	userconnrepository "github.com/DuongVu089x/interview/customer/repository/user_connection"
@@ -145,43 +147,75 @@ func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
 
-	// Initialize infrastructure
+	// Initialize observability
+	tp, err := observability.InitTracer(&cfg.Observability)
+	if err != nil {
+		log.Fatalf("Failed to initialize tracer: %v", err)
+	}
+	defer tp.Shutdown(context.Background())
+
+	logger, err := observability.NewLogger(&cfg.Observability)
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+
+	if err := observability.InitMetrics(&cfg.Observability); err != nil {
+		logger.Error("Failed to initialize metrics", zap.Error(err))
+	}
+
+	// Replace standard logger with zap logger
+	zap.ReplaceGlobals(logger)
+	logger = logger.Named("customer-service")
+
+	// Get tracer
+	tracer := observability.GetTracer("customer-service")
+
+	// Initialize infrastructure with observability
 	mainDB, err := initMainDB(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize main database: %v", err)
-		return
+		logger.Fatal("Failed to initialize main database", zap.Error(err))
 	}
 
 	readDB, err := initReadDB(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize read database: %v", err)
-		return
+		logger.Fatal("Failed to initialize read database", zap.Error(err))
 	}
 
 	kafkaConsumer, err := initKafkaConsumer(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize Kafka consumer: %v", err)
+		logger.Fatal("Failed to initialize Kafka consumer", zap.Error(err))
 	}
 
 	wsServer := setupWebsocket(cfg, mainDB, readDB)
 
-	appCtx := appctx.NewAppContext(mainDB, readDB, nil, kafkaConsumer, nil, wsServer)
+	// Create AppContext with observability components
+	appCtx := appctx.NewAppContext(
+		mainDB,
+		readDB,
+		nil,
+		kafkaConsumer,
+		nil,
+		wsServer,
+		logger,
+		tracer,
+	)
 
-	// Initialize consumer service
+	// Initialize consumer service with observability
 	notificationConsumer := consumer.NewNotificationConsumer(appCtx)
 	consumerService := consumer.NewConsumerService(appCtx, notificationConsumer)
 
-	// Start consumer service in a goroutine with context
+	// Start consumer service in a goroutine with context and observability
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
 		if err := consumerService.SetupConsumers(ctx); err != nil {
-			log.Fatalf("Failed to start consumer service: %v", err)
+			appCtx.GetLogger().Fatal("Failed to start consumer service", zap.Error(err))
 		}
 	}()
 
-	// Initialize HTTP server
+	// Initialize HTTP server with observability middleware
 	e := echo.New()
 	e.Use(middleware.Recover())
 	e.Use(middleware.ConfigureCORS())
@@ -191,26 +225,21 @@ func main() {
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "OK"})
 	})
+
 	notificationHandler := notification.NewHandler(appCtx)
 	notification.RegisterRoutes(e, notificationHandler)
 
 	customerHandler := customer.NewRestHandler(appCtx)
 	customer.RegisterRoutes(e, customerHandler)
 
-	// Print routes for debugging
-	middleware.PrintRegisteredRoutes(e)
-
-	// Initialize and start gRPC server
-	err = initGrpcServer(appCtx, cfg)
-	if err != nil {
-		log.Fatalf("Failed to initialize gRPC server: %v", err)
-		return
+	// Initialize gRPC server with observability
+	if err := initGrpcServer(appCtx, cfg); err != nil {
+		appCtx.GetLogger().Fatal("Failed to initialize gRPC server", zap.Error(err))
 	}
 
-	// Start REST server
-	serverAddr := fmt.Sprintf(":%s", cfg.Server.Port)
-	log.Printf("Starting REST server on %s", serverAddr)
-	if err := e.Start(serverAddr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Start HTTP server
+	appCtx.GetLogger().Info("Starting HTTP server", zap.String("port", cfg.Server.Port))
+	if err := e.Start(":" + cfg.Server.Port); err != nil {
+		appCtx.GetLogger().Fatal("Failed to start server", zap.Error(err))
 	}
 }
