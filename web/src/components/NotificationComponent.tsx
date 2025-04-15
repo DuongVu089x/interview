@@ -15,7 +15,7 @@ export default function NotificationComponent() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/notifications?userId=U0001&page=${page}&limit=10`);
+      const response = await fetch(`/api/notifications?userId=usr_uvwxy&page=${page}&limit=10`);
       if (!response.ok) {
         throw new Error('Failed to fetch notifications');
       }

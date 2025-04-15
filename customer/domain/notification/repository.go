@@ -1,8 +1,10 @@
 package notification
 
+import "context"
+
 type Repository interface {
-	GetNotification(id string) (*Notification, error)
-	GetNotifications(userId string, offset, limit int64) ([]*Notification, error)
-	CreateNotification(notification *Notification) error
-	MarkAsReadNotification(id string) error
+	GetNotification(ctx context.Context, id string) (*Notification, error)
+	GetNotifications(ctx context.Context, userId string, offset, limit int64) ([]*Notification, error)
+	CreateNotification(ctx context.Context, notification *Notification) (*Notification, error)
+	MarkAsReadNotification(ctx context.Context, id string) error
 }

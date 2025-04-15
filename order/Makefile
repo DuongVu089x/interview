@@ -10,6 +10,8 @@ REDIS_ADDR ?= localhost:6379
 REDIS_PASSWORD ?=
 REDIS_DB ?= 0
 SERVER_PORT ?= 8081
+CUSTOMER_SERVICE_HOST ?= localhost
+CUSTOMER_SERVICE_PORT ?= 50051
 
 # Export all variables for child processes
 export MONGODB_URI
@@ -21,6 +23,8 @@ export REDIS_ADDR
 export REDIS_PASSWORD
 export REDIS_DB
 export SERVER_PORT
+export CUSTOMER_SERVICE_HOST
+export CUSTOMER_SERVICE_PORT
 
 # Run the application
 run:
@@ -39,6 +43,8 @@ run-with-env:
 	REDIS_PASSWORD=$(REDIS_PASSWORD) \
 	REDIS_DB=$(REDIS_DB) \
 	SERVER_PORT=$(SERVER_PORT) \
+	CUSTOMER_SERVICE_HOST=$(CUSTOMER_SERVICE_HOST) \
+	CUSTOMER_SERVICE_PORT=$(CUSTOMER_SERVICE_PORT) \
 	go run main.go
 
 # Build the application

@@ -16,7 +16,7 @@ export const WebSocketProvider = ({
   children,
   autoConnect = true,
   url = 'ws://localhost/notifications',
-  userId = 'U0001' // Default user ID
+  userId = 'usr_uvwxy' // Default user ID
 }: {
   children: ReactNode;
   autoConnect?: boolean;

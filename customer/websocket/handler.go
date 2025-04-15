@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -80,7 +81,7 @@ func (h *WebSocketHandler) pushMessageToDevice(conn *Connection, message string)
 		conn.WUnlock()
 
 		// Update the user connection status to active
-		h.userConnRepository.UpdateUserConnection(&domainuserconnection.UserConnection{
+		h.userConnRepository.UpdateUserConnection(context.Background(), &domainuserconnection.UserConnection{
 			ID: connID,
 		}, &domainuserconnection.UserConnection{
 			Status:          domainuserconnection.ConStatus.ACTIVE,
@@ -113,7 +114,7 @@ func (h *WebSocketHandler) OnWSConnect(conn *Connection) error {
 	conn.Attached[CONNECTED_TIME] = now
 	conn.Attached[USER_AGENT] = userConn.UserAgent
 
-	userConn, err := h.userConnRepository.CreateUserConnection(userConn)
+	userConn, err := h.userConnRepository.CreateUserConnection(context.Background(), userConn)
 	var outputMsg *WSOutputMessage
 	if err != nil {
 		outputMsg = &WSOutputMessage{
@@ -205,7 +206,7 @@ func (h *WebSocketHandler) OnWSMessage(conn *Connection, message string) error {
 		objID := conn.Attached[USER_CON_ID].(primitive.ObjectID)
 		conn.Attached[USER_ID] = data.UserID
 
-		err = h.userConnRepository.UpdateUserConnection(&domainuserconnection.UserConnection{
+		err = h.userConnRepository.UpdateUserConnection(context.Background(), &domainuserconnection.UserConnection{
 			ID: objID,
 		}, &domainuserconnection.UserConnection{
 			UserID:          data.UserID,
@@ -262,7 +263,7 @@ func (h *WebSocketHandler) OnWSClose(conn *Connection, err error) error {
 	}
 	connID := connAnyID.(primitive.ObjectID)
 
-	h.userConnRepository.GetUserConnection(&domainuserconnection.UserConnection{
+	h.userConnRepository.GetUserConnection(context.Background(), &domainuserconnection.UserConnection{
 		ID:              connID,
 		Status:          domainuserconnection.ConStatus.CLOSED,
 		LastUpdatedTime: &now,
@@ -282,8 +283,8 @@ func (h *WebSocketHandler) GetConnByID(connID int) (*Connection, error) {
 
 // cleanUserConnection cleans up user connections that haven't been authorized within 3 minutes of connecting
 func (h *WebSocketHandler) cleanUserConnection() {
-	log.Println("Start cleaning user connections")
-	defer log.Println("End cleaning user connections")
+	// log.Println("Start cleaning user connections")
+	// defer log.Println("End cleaning user connections")
 
 	route := h.wsServer.GetRoute("/notifications")
 	if route == nil {
@@ -333,7 +334,7 @@ func (h *WebSocketHandler) cleanUserConnection() {
 			conn.Close()
 			if cid != nil {
 				connID := cid.(primitive.ObjectID)
-				h.userConnRepository.UpdateUserConnection(&domainuserconnection.UserConnection{
+				h.userConnRepository.UpdateUserConnection(context.Background(), &domainuserconnection.UserConnection{
 					ID: connID,
 				}, &domainuserconnection.UserConnection{
 					Status:             domainuserconnection.ConStatus.CLOSED,
@@ -346,7 +347,7 @@ func (h *WebSocketHandler) cleanUserConnection() {
 
 	// remove old connections that have not sent a ping message after 1 minute (3 times the job processing time)
 	limit := now.Add(-time.Duration(60) * time.Second)
-	userConns, err := h.userConnRepository.GetUserConnections(&domainuserconnection.UserConnection{
+	userConns, err := h.userConnRepository.GetUserConnections(context.Background(), &domainuserconnection.UserConnection{
 		Status: domainuserconnection.ConStatus.ACTIVE,
 		ComplexQuery: []bson.M{{
 			"last_message_time": bson.M{"$lt": limit},
@@ -357,7 +358,7 @@ func (h *WebSocketHandler) cleanUserConnection() {
 	}
 
 	for _, userConn := range userConns {
-		h.userConnRepository.UpdateUserConnection(&domainuserconnection.UserConnection{
+		h.userConnRepository.UpdateUserConnection(context.Background(), &domainuserconnection.UserConnection{
 			ID: userConn.ID,
 		}, &domainuserconnection.UserConnection{
 			Status:             domainuserconnection.ConStatus.CLOSED,

@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	"context"
 	"fmt"
 
 	notificationusecase "github.com/DuongVu089x/interview/customer/application/notification"
@@ -30,7 +31,8 @@ func (c *NotificationConsumer) Setup() error {
 		return fmt.Errorf("kafka consumer is not initialized")
 	}
 
-	mainDB := c.appCtx.GetMainDBConnection()
+	writeDB := c.appCtx.GetMainDBConnection()
+	readDB := c.appCtx.GetReadMainDBConnection()
 	wsServer := c.appCtx.GetWebSocketServer()
 
 	// Register order notification handler
@@ -41,14 +43,15 @@ func (c *NotificationConsumer) Setup() error {
 		payload := msg.Value.Payload
 		payloadMap := payload.(map[string]any)
 
-		notificationRepository := notificationrepository.NewMongoRepository(mainDB)
-		userConnRepository := userconnrepository.NewMongoRepository(mainDB)
+		notificationRepository := notificationrepository.NewMongoRepository(writeDB, readDB)
+		userConnRepository := userconnrepository.NewMongoRepository(writeDB, readDB)
 
 		notificationHandler := websocket.NewWebSocketHandler(userConnRepository, wsServer)
 		notificationDispatcher := websocket.NewNotificationDispatcher(wsServer, "/notifications", notificationHandler)
 		notificationUseCase := notificationusecase.NewWriteUseCase(notificationRepository, notificationDispatcher)
 
-		return notificationUseCase.CreateNotification(&notificationusecase.CreateNotificationRequest{
+		ctx := context.Background()
+		return notificationUseCase.CreateNotification(ctx, &notificationusecase.CreateNotificationRequest{
 			Topic:       "order-created",
 			Title:       "Order Created",
 			Description: "Order created successfully",

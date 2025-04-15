@@ -1,6 +1,8 @@
 package customer
 
 import (
+	"context"
+
 	domainnotification "github.com/DuongVu089x/interview/customer/domain/notification"
 )
 
@@ -23,9 +25,9 @@ type GetNotificationsResponse struct {
 	Total         int64              `json:"total"`
 }
 
-func (u *ReadUseCase) GetNotifications(userId string, page, limit int64) (*GetNotificationsResponse, error) {
+func (u *ReadUseCase) GetNotifications(ctx context.Context, userId string, page, limit int64) (*GetNotificationsResponse, error) {
 	offset := (page - 1) * limit
-	notifications, err := u.notificationRepository.GetNotifications(userId, offset, limit)
+	notifications, err := u.notificationRepository.GetNotifications(ctx, userId, offset, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -39,18 +41,16 @@ func (u *ReadUseCase) GetNotifications(userId string, page, limit int64) (*GetNo
 	}, nil
 }
 
-func (u *ReadUseCase) GetNotification(id string) (*NotificationDTO, error) {
-	notification, err := u.notificationRepository.GetNotification(id)
+func (u *ReadUseCase) GetNotification(ctx context.Context, id string) (*NotificationDTO, error) {
+	notification, err := u.notificationRepository.GetNotification(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-
-	// Use mapper to convert domain entity to DTO
 	return u.mapper.ToDTO(notification), nil
 }
 
-func (u *ReadUseCase) MarkAsReadNotification(id string) error {
-	return u.notificationRepository.MarkAsReadNotification(id)
+func (u *ReadUseCase) MarkAsReadNotification(ctx context.Context, id string) error {
+	return u.notificationRepository.MarkAsReadNotification(ctx, id)
 }
 
 // WriteUseCase handles operations that require the dispatcher (like creating notifications)
@@ -73,11 +73,11 @@ func NewWriteUseCase(notificationRepository domainnotification.Repository, notif
 	}
 }
 
-func (u *WriteUseCase) CreateNotification(request *CreateNotificationRequest) error {
+func (u *WriteUseCase) CreateNotification(ctx context.Context, request *CreateNotificationRequest) error {
 	// Use mapper to convert DTO to domain entity
 	notification := u.mapper.ToEntity(*request)
 
-	err := u.notificationRepository.CreateNotification(notification)
+	notification, err := u.notificationRepository.CreateNotification(ctx, notification)
 	if err != nil {
 		return err
 	}

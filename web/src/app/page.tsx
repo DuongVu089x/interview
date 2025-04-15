@@ -4,7 +4,7 @@ import NotificationComponent from '@/components/NotificationComponent';
 import UserOrderList from '@/components/UserOrderList';
 
 export default function Home() {
-  const userId = 'U0001'; // Default user ID - in a real app, this would come from authentication
+  const userId = 'usr_uvwxy'; // Default user ID - in a real app, this would come from authentication
 
   return (
     <main className="min-h-screen bg-gray-50">
