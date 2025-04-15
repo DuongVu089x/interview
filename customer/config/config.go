@@ -11,6 +11,7 @@ type Config struct {
 	Kafka   KafkaConfig
 	Redis   RedisConfig
 	Server  ServerConfig
+	GRPC    GRPCConfig
 }
 
 // MongoDBConfig holds MongoDB configuration
@@ -48,6 +49,11 @@ type ServerConfig struct {
 	WSPort string
 }
 
+// GRPCConfig holds gRPC configuration
+type GRPCConfig struct {
+	Port string
+}
+
 // LoadConfig loads configuration from environment variables
 func LoadConfig() *Config {
 	return &Config{
@@ -69,6 +75,9 @@ func LoadConfig() *Config {
 		Server: ServerConfig{
 			Port:   getEnv("SERVER_PORT", "8082"),
 			WSPort: getEnv("WS_PORT", "8382"),
+		},
+		GRPC: GRPCConfig{
+			Port: getEnv("GRPC_PORT", "50051"),
 		},
 	}
 }

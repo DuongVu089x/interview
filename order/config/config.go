@@ -5,12 +5,19 @@ import (
 	"strconv"
 )
 
+// CustomerServiceConfig holds customer service configuration
+type CustomerServiceConfig struct {
+	Host string
+	Port string
+}
+
 // Config holds all configuration for the application
 type Config struct {
-	MongoDB MongoDBConfig
-	Kafka   KafkaConfig
-	Redis   RedisConfig
-	Server  ServerConfig
+	MongoDB         MongoDBConfig
+	Kafka           KafkaConfig
+	Redis           RedisConfig
+	Server          ServerConfig
+	CustomerService CustomerServiceConfig
 }
 
 // MongoDBConfig holds MongoDB configuration
@@ -51,8 +58,8 @@ type ServerConfig struct {
 func LoadConfig() *Config {
 	return &Config{
 		MongoDB: MongoDBConfig{
-			URI:      getEnv("MONGODB_URI", ""),
-			ReadURI:  getEnv("MONGODB_READ_URI", ""),
+			URI:      getEnv("MONGODB_URI", "mongodb://localhost:27017"),
+			ReadURI:  getEnv("MONGODB_READ_URI", "mongodb://localhost:27017"),
 			Database: getEnv("MONGODB_DATABASE", "orders"),
 		},
 		Kafka: KafkaConfig{
@@ -74,6 +81,10 @@ func LoadConfig() *Config {
 		},
 		Server: ServerConfig{
 			Port: getEnv("SERVER_PORT", "8081"),
+		},
+		CustomerService: CustomerServiceConfig{
+			Host: getEnv("CUSTOMER_SERVICE_HOST", "localhost"),
+			Port: getEnv("CUSTOMER_SERVICE_PORT", "8080"),
 		},
 	}
 }

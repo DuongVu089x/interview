@@ -4,35 +4,62 @@ import (
 	"context"
 
 	domainorder "github.com/DuongVu089x/interview/order/domain/order"
+	"github.com/DuongVu089x/interview/order/infrastructure/mongodb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MongoRepository struct {
-	collection *mongo.Collection
+	*mongodb.BaseAdapter
 }
 
-func NewMongoRepository(db *mongo.Client) domainorder.Repository {
+const (
+	databaseName   = "orders"
+	collectionName = "orders"
+)
+
+func NewMongoRepository(writeDB, readDB *mongo.Client) domainorder.Repository {
+	baseAdapter := mongodb.NewBaseAdapter(writeDB, readDB, databaseName)
 	return &MongoRepository{
-		collection: db.Database("orders").Collection("orders"),
+		BaseAdapter: baseAdapter,
 	}
 }
 
 func (r *MongoRepository) GetOrder(id int64) (*domainorder.Order, error) {
 	var order domainorder.Order
-	err := r.collection.FindOne(context.Background(), domainorder.Order{OrderID: id}).Decode(&order)
-	return &order, err
-}
-
-func (r *MongoRepository) GetOrders(conditions domainorder.Order) ([]domainorder.Order, error) {
-	var orders []domainorder.Order
-
-	cursor, err := r.collection.Find(context.Background(), conditions)
+	err := r.GetReadDB().QueryOne(
+		context.Background(),
+		collectionName,
+		bson.M{"order_id": id},
+		&order,
+	)
 	if err != nil {
 		return nil, err
 	}
+	return &order, nil
+}
 
-	err = cursor.All(context.Background(), &orders)
+func (r *MongoRepository) GetOrders(conditions domainorder.Order) ([]domainorder.Order, error) {
+	filter := bson.M{}
+	if conditions.OrderID != 0 {
+		filter["order_id"] = conditions.OrderID
+	}
+	if conditions.UserID != "" {
+		filter["user_id"] = conditions.UserID
+	}
+	if conditions.Status != "" {
+		filter["status"] = conditions.Status
+	}
+
+	var orders []domainorder.Order
+	err := r.GetReadDB().Query(
+		context.Background(),
+		collectionName,
+		filter,
+		&orders,
+		options.Find().SetSort(bson.M{"created_at": -1}),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -41,16 +68,16 @@ func (r *MongoRepository) GetOrders(conditions domainorder.Order) ([]domainorder
 }
 
 func (r *MongoRepository) CreateOrder(order *domainorder.Order) error {
-	_, err := r.collection.InsertOne(context.Background(), order)
-	return err
+	return r.GetWriteDB().Insert(context.Background(), collectionName, order)
 }
 
 func (r *MongoRepository) UpdateOrder(order *domainorder.Order) error {
-	_, err := r.collection.UpdateOne(context.Background(), bson.M{"order_id": order.OrderID}, bson.M{"$set": order})
-	return err
+	filter := bson.M{"order_id": order.OrderID}
+	update := bson.M{"$set": order}
+	return r.GetWriteDB().Update(context.Background(), collectionName, filter, update)
 }
 
 func (r *MongoRepository) DeleteOrder(id string) error {
-	_, err := r.collection.DeleteOne(context.Background(), bson.M{"order_id": id})
-	return err
+	filter := bson.M{"order_id": id}
+	return r.GetWriteDB().Delete(context.Background(), collectionName, filter)
 }

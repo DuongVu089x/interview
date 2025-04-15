@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"errors"
 
 	notificationapp "github.com/DuongVu089x/interview/customer/application/notification"
@@ -28,7 +29,7 @@ func (n *NotificationDispatcher) DispatchToUser(userID string, notification *not
 	}
 
 	// Get all active connections for the user
-	userConns, err := n.webSocketHandler.userConnRepository.GetUserConnections(&domainuserconnection.UserConnection{
+	userConns, err := n.webSocketHandler.userConnRepository.GetUserConnections(context.Background(), &domainuserconnection.UserConnection{
 		UserID: userID,
 		Status: domainuserconnection.ConStatus.ACTIVE,
 	}, 0, 100)

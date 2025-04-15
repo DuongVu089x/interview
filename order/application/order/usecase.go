@@ -9,6 +9,9 @@ import (
 
 	domainidgen "github.com/DuongVu089x/interview/order/domain/id_gen"
 	domainorder "github.com/DuongVu089x/interview/order/domain/order"
+	pb "github.com/DuongVu089x/interview/order/proto/customer"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type UseCase struct {
@@ -16,24 +19,45 @@ type UseCase struct {
 	orderService domainorder.Service
 
 	// helper repository
-	idgenService domainidgen.Service
+	idgenService   domainidgen.Service
+	customerClient pb.CustomerServiceClient
 }
 
 func NewOrderUseCase(
 	orderService domainorder.Service,
 	idgenService domainidgen.Service,
+	customerClient pb.CustomerServiceClient,
 ) *UseCase {
 
 	mapper := &Mapper{}
 
 	return &UseCase{
-		mapper:       mapper,
-		orderService: orderService,
-		idgenService: idgenService,
+		mapper:         mapper,
+		orderService:   orderService,
+		idgenService:   idgenService,
+		customerClient: customerClient,
 	}
 }
 
 func (uc *UseCase) CreateOrder(ctx appcontext.AppContext, req CreateOrderRequest) (*OrderResponse, error) {
+	// Check if customer exists
+	customerResp, err := uc.customerClient.GetCustomer(ctx.GetDefaultContext(), &pb.GetCustomerRequest{
+		UserId: req.UserID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok && st.Code() == codes.NotFound {
+			return nil, fmt.Errorf("customer not found")
+		}
+		return nil, fmt.Errorf("failed to check customer existence: %w", err)
+	}
+	if !customerResp.Exists {
+		return nil, fmt.Errorf("customer not found")
+	}
+
+	customer := customerResp.Customer
+
+	fmt.Println(customer)
+
 	// Convert DTO to domain entity
 	order := uc.mapper.ToEntity(req)
 
@@ -58,15 +82,15 @@ func (uc *UseCase) CreateOrder(ctx appcontext.AppContext, req CreateOrderRequest
 
 	// Send order to Kafka
 	err = ctx.GetKafkaProducer().Publish(domain.Message{
-		Key:   order.OrderCode,
+		Key:   fmt.Sprintf("ORDER_CREATED_%d", order.OrderID),
 		Topic: "orders-topic",
 		Value: domain.MessageValue{
 			Meta: &domain.MetaData{
-				MessageID: order.OrderCode,
+				MessageID: fmt.Sprintf("ORDER_CREATED_%d", order.OrderID),
 				ServiceID: "order-service",
 				Timestamp: time.Now().UnixNano(),
 			},
-			MessageCode: order.OrderCode,
+			MessageCode: "ORDER_CREATED",
 			Payload: map[string]any{
 				"order_id": fmt.Sprintf("%d", order.OrderID),
 				"user_id":  order.UserID,

@@ -4,13 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
+	customergrpchandler "github.com/DuongVu089x/interview/customer/api/grpc/customer"
+	"github.com/DuongVu089x/interview/customer/api/rest/customer"
 	"github.com/DuongVu089x/interview/customer/api/rest/notification"
 	"github.com/DuongVu089x/interview/customer/application/consumer"
 	"github.com/DuongVu089x/interview/customer/component/appctx"
-	"github.com/DuongVu089x/interview/customer/component/server"
 	"github.com/DuongVu089x/interview/customer/config"
 	"github.com/DuongVu089x/interview/customer/infrastructure/kafka"
 	"github.com/DuongVu089x/interview/customer/middleware"
@@ -19,7 +21,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	pb "github.com/DuongVu089x/interview/customer/proto/customer"
 	userconnrepository "github.com/DuongVu089x/interview/customer/repository/user_connection"
+	"google.golang.org/grpc"
 )
 
 // Function to initialize main database connection
@@ -53,13 +57,13 @@ func initReadDB(cfg *config.Config) (*mongo.Client, error) {
 }
 
 // Function to setup websocket
-func setupWebsocket(cfg *config.Config, mainDB *mongo.Client) *websocket.WSServer {
+func setupWebsocket(cfg *config.Config, mainDB, readDB *mongo.Client) *websocket.WSServer {
 	wsServer := websocket.NewWSServer("customer")
 	wsServer.Expose(cfg.Server.WSPort)
 
 	wsRoute := wsServer.NewRoute("/notifications")
 
-	userConnRepository := userconnrepository.NewMongoRepository(mainDB)
+	userConnRepository := userconnrepository.NewMongoRepository(mainDB, readDB)
 	handler := websocket.NewWebSocketHandler(userConnRepository, wsServer)
 	wsRoute.OnConnect = handler.OnWSConnect
 	wsRoute.OnMessage = handler.OnWSMessage
@@ -113,18 +117,45 @@ func initKafkaConsumer(cfg *config.Config) (*kafka.RetryableConsumer, error) {
 	return consumer, nil
 }
 
+// Function to initialize gRPC server
+func initGrpcServer(appCtx appctx.AppContext, cfg *config.Config) error {
+	// Create a new gRPC server
+	server := grpc.NewServer()
+
+	// Register the customer service
+	customerHandler := customergrpchandler.NewGrpcHandler(appCtx)
+	pb.RegisterCustomerServiceServer(server, customerHandler)
+
+	// Start gRPC server in a goroutine
+	go func() {
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GRPC.Port))
+		if err != nil {
+			log.Fatalf("Failed to listen: %v", err)
+		}
+		log.Printf("Starting gRPC server on port %s", cfg.GRPC.Port)
+		if err := server.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
+	}()
+
+	return nil
+}
+
 func main() {
+	// Load configuration
 	cfg := config.LoadConfig()
 
 	// Initialize infrastructure
 	mainDB, err := initMainDB(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize main database: %v", err)
+		return
 	}
 
 	readDB, err := initReadDB(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize read database: %v", err)
+		return
 	}
 
 	kafkaConsumer, err := initKafkaConsumer(cfg)
@@ -132,7 +163,7 @@ func main() {
 		log.Fatalf("Failed to initialize Kafka consumer: %v", err)
 	}
 
-	wsServer := setupWebsocket(cfg, mainDB)
+	wsServer := setupWebsocket(cfg, mainDB, readDB)
 
 	appCtx := appctx.NewAppContext(mainDB, readDB, nil, kafkaConsumer, nil, wsServer)
 
@@ -163,12 +194,23 @@ func main() {
 	notificationHandler := notification.NewHandler(appCtx)
 	notification.RegisterRoutes(e, notificationHandler)
 
+	customerHandler := customer.NewRestHandler(appCtx)
+	customer.RegisterRoutes(e, customerHandler)
+
 	// Print routes for debugging
 	middleware.PrintRegisteredRoutes(e)
 
-	// Start server with graceful shutdown
-	srv := server.NewServer(e, cfg.Server.Port, appCtx)
-	if err := srv.Start(); err != nil {
-		log.Fatal(err)
+	// Initialize and start gRPC server
+	err = initGrpcServer(appCtx, cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize gRPC server: %v", err)
+		return
+	}
+
+	// Start REST server
+	serverAddr := fmt.Sprintf(":%s", cfg.Server.Port)
+	log.Printf("Starting REST server on %s", serverAddr)
+	if err := e.Start(serverAddr); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }

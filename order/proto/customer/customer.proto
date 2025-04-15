@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package customer;
+
+option go_package = "github.com/DuongVu089x/interview/order/proto/customer";
+
+service CustomerService {
+  rpc GetCustomer (GetCustomerRequest) returns (GetCustomerResponse) {}
+}
+
+message GetCustomerRequest {
+  string user_id = 1;
+}
+
+message GetCustomerResponse {
+  Customer customer = 1;
+  bool exists = 2;
+}
+
+message Customer {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
