@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	port "github.com/DuongVu089x/interview/customer/application/messaging_port"
+	port "github.com/DuongVu089x/interview/customer/application/port"
 	domain "github.com/DuongVu089x/interview/customer/domain"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )

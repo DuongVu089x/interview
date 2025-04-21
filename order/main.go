@@ -12,10 +12,13 @@ import (
 	"github.com/DuongVu089x/interview/order/component/appctx"
 	"github.com/DuongVu089x/interview/order/config"
 	"github.com/DuongVu089x/interview/order/infrastructure/kafka"
+	pb "github.com/DuongVu089x/interview/order/proto/customer"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Function to initialize main database connection
@@ -159,6 +162,16 @@ func initRedis(cfg *config.Config) (*redis.Client, error) {
 	return redisClient, nil
 }
 
+// Function to initialize customer service client
+func initCustomerClient(cfg *config.Config) (pb.CustomerServiceClient, error) {
+	addr := fmt.Sprintf("%s:%s", cfg.CustomerService.Host, cfg.CustomerService.Port)
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to customer service: %v", err)
+	}
+	return pb.NewCustomerServiceClient(conn), nil
+}
+
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
@@ -194,11 +207,26 @@ func main() {
 		log.Fatalf("Failed to initialize Redis: %v", err)
 		return
 	}
+	// defer redisClient.Close()
 
-	// Initialize AppContext
-	appctx := appctx.NewAppContext(mainDB, readDB, kafkaProducer, nil, redisClient)
+	// Initialize customer service client
+	customerClient, err := initCustomerClient(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize customer client: %v", err)
+		return
+	}
 
-	// Initialize Echo
+	// Initialize application context
+	appctx := appctx.NewAppContext(
+		mainDB,
+		readDB,
+		kafkaProducer,
+		nil,
+		redisClient,
+		customerClient,
+	)
+
+	// Initialize Echo framework
 	e := echo.New()
 
 	// Add middlewares
@@ -225,6 +253,4 @@ func main() {
 	if err := e.Start(serverAddr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-
-	e.Start(serverAddr)
 }

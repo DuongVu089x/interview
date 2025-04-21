@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/DuongVu089x/interview/order/infrastructure/kafka"
+	pb "github.com/DuongVu089x/interview/order/proto/customer"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -18,8 +19,9 @@ type AppContext interface {
 	GetRedisClient() *redis.Client
 
 	GetDefaultContext() context.Context
-
 	WithContext(c context.Context) AppContext
+
+	GetCustomerClient() pb.CustomerServiceClient
 }
 
 type appCtx struct {
@@ -32,17 +34,25 @@ type appCtx struct {
 	kafkaConsumer *kafka.RetryableConsumer
 
 	redisClient *redis.Client
+
+	customerClient pb.CustomerServiceClient
 }
 
-func NewAppContext(mainDB *mongo.Client, readMainDB *mongo.Client, kafkaProducer *kafka.Producer, kafkaConsumer *kafka.RetryableConsumer, redisClient *redis.Client) *appCtx {
+func NewAppContext(
+	mainDB *mongo.Client,
+	readMainDB *mongo.Client,
+	kafkaProducer *kafka.Producer,
+	kafkaConsumer *kafka.RetryableConsumer,
+	redisClient *redis.Client,
+	customerClient pb.CustomerServiceClient,
+) *appCtx {
 	return &appCtx{
-		mainDB:     mainDB,
-		readMainDB: readMainDB,
-
-		kafkaProducer: kafkaProducer,
-		kafkaConsumer: kafkaConsumer,
-
-		redisClient: redisClient,
+		mainDB:         mainDB,
+		readMainDB:     readMainDB,
+		kafkaProducer:  kafkaProducer,
+		kafkaConsumer:  kafkaConsumer,
+		redisClient:    redisClient,
+		customerClient: customerClient,
 	}
 }
 
@@ -71,6 +81,10 @@ func (ctx *appCtx) GetDefaultContext() context.Context {
 		ctx.ctx = context.Background()
 	}
 	return ctx.ctx
+}
+
+func (ctx *appCtx) GetCustomerClient() pb.CustomerServiceClient {
+	return ctx.customerClient
 }
 
 // WithContext creates a new AppContext with the given context

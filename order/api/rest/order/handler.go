@@ -21,12 +21,17 @@ type Handler struct {
 }
 
 func NewHandler(appCtx appctx.AppContext) *Handler {
-	orderRepo := orderrepository.NewMongoRepository(appCtx.GetMainDBConnection())
+	// Initialize order repository and service
+	orderRepo := orderrepository.NewMongoRepository(appCtx.GetMainDBConnection(), appCtx.GetReadMainDBConnection())
 	orderService := orderservice.NewOrderService(orderRepo)
 
+	// Initialize ID generator repository and service
 	idgenRepo := idgenrepository.NewMongoRepository(appCtx.GetMainDBConnection())
 	idgenService := idgenservice.NewIDGenService(idgenRepo)
-	orderUseCase := orderusecase.NewOrderUseCase(orderService, idgenService)
+
+	// Initialize order use case with all dependencies
+	orderUseCase := orderusecase.NewOrderUseCase(orderService, idgenService, appCtx.GetCustomerClient())
+
 	return &Handler{
 		appCtx:       appCtx,
 		orderUseCase: orderUseCase,
@@ -44,9 +49,13 @@ func (h *Handler) CreateOrder(c echo.Context) error {
 	if err := h.validator.Validate(req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
+
 	response, err := h.orderUseCase.CreateOrder(h.appCtx, req)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create order "+err.Error())
+		if err.Error() == "customer not found" {
+			return echo.NewHTTPError(http.StatusNotFound, "Customer not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create order: "+err.Error())
 	}
 
 	return c.JSON(http.StatusCreated, response)

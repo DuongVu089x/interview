@@ -4,31 +4,40 @@ import (
 	"context"
 
 	domainidgen "github.com/DuongVu089x/interview/order/domain/id_gen"
+	"github.com/DuongVu089x/interview/order/infrastructure/mongodb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MongoRepository struct {
-	collection *mongo.Collection
+	writeDB *mongodb.MongoAdapter
 }
 
-func NewMongoRepository(db *mongo.Client) domainidgen.Repository {
+const (
+	databaseName   = "orders"
+	collectionName = "id_gen"
+)
+
+func NewMongoRepository(writeDB *mongo.Client) domainidgen.Repository {
+	writeAdapter := mongodb.NewMongoAdapter(writeDB, databaseName)
+
 	return &MongoRepository{
-		collection: db.Database("orders").Collection("id_gen"),
+		writeDB: writeAdapter,
 	}
 }
 
 func (r *MongoRepository) GenerateID(key string) (int64, error) {
-	result := r.collection.FindOneAndUpdate(context.Background(),
-		bson.M{"key": key},
-		bson.M{
-			"$inc": bson.M{"value": 1},
-		},
-		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After))
-
 	var idGen domainidgen.IDGen
-	err := result.Decode(&idGen)
+
+	err := r.writeDB.FindOneAndUpdate(
+		context.Background(),
+		collectionName,
+		bson.M{"key": key},
+		bson.M{"$inc": bson.M{"value": 1}},
+		&idGen,
+		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After),
+	)
 	if err != nil {
 		return 0, err
 	}

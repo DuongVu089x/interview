@@ -10,6 +10,7 @@ REDIS_ADDR ?= localhost:6379
 REDIS_PASSWORD ?=
 REDIS_DB ?= 0
 SERVER_PORT ?= 8082
+GRPC_PORT ?= 50051
 
 # Export all variables for child processes
 export MONGODB_URI
@@ -21,6 +22,7 @@ export REDIS_ADDR
 export REDIS_PASSWORD
 export REDIS_DB
 export SERVER_PORT
+export GRPC_PORT
 
 # Run the application
 run:
@@ -39,6 +41,7 @@ run-with-env:
 	REDIS_PASSWORD=$(REDIS_PASSWORD) \
 	REDIS_DB=$(REDIS_DB) \
 	SERVER_PORT=$(SERVER_PORT) \
+	GRPC_PORT=$(GRPC_PORT) \
 	go run main.go
 
 # Build the application
@@ -46,4 +49,16 @@ build:
 	@echo "Building order service..."
 	@go build -o order-service ./
 
-.PHONY: run run-with-env build
+# Build gRPC test client
+build-grpc-client:
+	go build -o bin/grpc-client cmd/grpc-client/main.go
+
+# Run gRPC test client with a test user ID
+test-grpc:
+	@if [ -z "$(user)" ]; then \
+		echo "Usage: make test-grpc user=<user_id>"; \
+		exit 1; \
+	fi
+	go run cmd/grpc-client/main.go -user=$(user)
+
+.PHONY: run run-with-env build build-grpc-client test-grpc

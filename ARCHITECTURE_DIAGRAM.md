@@ -44,7 +44,7 @@ graph TD
 ## Clean Architecture Layers - Dependency Flow
 
 ```mermaid
-erDiagram
+layerDiagram
     "Domain Layer" {
         string Entities
         string ValueObjects

@@ -174,19 +174,101 @@ The application follows a mixed architecture combining principles from both Clea
 
 #### Ports (Interfaces)
 
--   Located in application layer with `_port` suffix
--   Define how the application interacts with external systems
--   Example: `messaging_port` for Kafka interaction
--   Domain interfaces like `Repository` and `Service` in the domain layer
+-   Located in application layer under `application/port` package
+-   Define how the application interacts with external systems through clean interfaces
+-   Key message ports:
+    -   `MessageProducer`: Interface for sending messages to message brokers
+        -   `Publish(message domain.Message) error`: Publishes domain messages
+        -   `Close() error`: Cleanly shuts down the producer
+    -   `MessageConsumer`: Interface for receiving messages from message brokers
+        -   `RegisterHandler(topic string, handler func(domain.Message) error) error`: Registers message handlers
+        -   `Start(ctx context.Context) error`: Starts consuming messages
+        -   `Close() error`: Cleanly shuts down the consumer
+    -   `DatabasePort`: Interface for database operations
+        -   `Query(ctx, collection, filter, result)`: Type-safe query for multiple documents
+        -   `QueryOne(ctx, collection, filter, result)`: Type-safe query for single document
+        -   `Insert`: Inserts documents
+        -   `Update`: Updates documents
+        -   `Delete`: Deletes documents
+        -   `Upsert`: Updates or inserts documents
+        -   `Incr`: Atomically increments numeric fields
+        -   `FindOneAndUpdate`: Atomic update with return value
+        -   `Close`: Auto-closes with parent context
 
 #### Adapters (Implementations)
 
--   Located in infrastructure and repository layers
--   Implement the port interfaces
--   Connect to external systems
--   Example: Kafka consumer/producer implementations
--   Example: `MongoRepository` in repository layer implementing the domain `Repository` interface
--   Example: Service implementations in service layer implementing domain service interfaces
+-   Located in infrastructure layer under specific technology packages:
+    -   `infrastructure/kafka`: Kafka message broker implementations
+    -   `infrastructure/mongodb`: MongoDB database implementations
+-   Key adapters:
+    -   Kafka adapters:
+        -   `Producer`: Implements `MessageProducer` interface for Kafka
+        -   `Consumer` and `RetryableConsumer`: Implement `MessageConsumer` interface for Kafka
+        -   Provides additional Kafka-specific functionality like:
+            -   Admin operations (topic management)
+            -   Configuration management
+            -   Retry mechanisms for reliable message processing
+    -   MongoDB adapters:
+        -   `MongoAdapter`: Implements `DatabasePort` interface
+        -   Features:
+            -   Type-safe query operations with generics
+            -   Automatic connection management with context
+            -   Built-in error wrapping with context
+            -   Support for read/write separation
+            -   Atomic operations for ID generation
+
+The Ports and Adapters pattern in this project ensures:
+
+-   Business logic remains independent of messaging implementation details
+-   Easy switching between different message broker implementations if needed
+-   Clear separation between domain logic and infrastructure concerns
+-   Testability through interface mocking
+-   Automatic resource cleanup through context management
+
+### Repository Implementation
+
+#### MongoDB Repository Pattern
+
+-   Repositories use the MongoDB adapter through the DatabasePort interface
+-   Support for read/write separation:
+
+    ```go
+    type MongoRepository struct {
+        writeDB *mongodb.MongoAdapter  // For write operations
+        readDB  *mongodb.MongoAdapter  // For read operations (optional)
+    }
+    ```
+
+-   Type-safe query operations:
+
+    ```go
+    // Example: Query multiple documents
+    var orders []Order
+    err := repo.readDB.Query(ctx, collection, filter, &orders)
+
+    // Example: Query single document
+    var order Order
+    err := repo.readDB.QueryOne(ctx, collection, filter, &order)
+    ```
+
+-   Atomic operations (e.g., ID generation):
+
+    ```go
+    var idGen IDGen
+    err := repo.writeDB.FindOneAndUpdate(
+        ctx, collection,
+        bson.M{"key": key},
+        bson.M{"$inc": bson.M{"value": 1}},
+        &idGen,
+        options.FindOneAndUpdate().SetUpsert(true),
+    )
+    ```
+
+-   Automatic connection management:
+    ```go
+    adapter, err := mongodb.NewMongoAdapter(ctx, uri, dbName)
+    // Connection will be automatically closed when ctx is done
+    ```
 
 ### Technology Stack
 

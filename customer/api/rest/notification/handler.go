@@ -16,7 +16,7 @@ type Handler struct {
 }
 
 func NewHandler(appCtx appctx.AppContext) *Handler {
-	notificationRepo := notificationrepository.NewMongoRepository(appCtx.GetMainDBConnection())
+	notificationRepo := notificationrepository.NewMongoRepository(appCtx.GetMainDBConnection(), appCtx.GetReadMainDBConnection())
 	notificationUseCase := notificationusecase.NewReadUseCase(notificationRepo)
 
 	return &Handler{
@@ -42,7 +42,7 @@ func (h *Handler) GetNotifications(c echo.Context) error {
 		limit = 10
 	}
 
-	response, err := h.notificationUseCase.GetNotifications(userId, page, limit)
+	response, err := h.notificationUseCase.GetNotifications(c.Request().Context(), userId, page, limit)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get notifications")
 	}

@@ -24,7 +24,7 @@ interface OrderListResponse {
   count: number;
 }
 
-export default function UserOrderList({ userId = 'U0001' }: { userId?: string }) {
+export default function UserOrderList({ userId = 'usr_uvwxy' }: { userId?: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
