@@ -12,22 +12,22 @@ type Config struct {
 	Redis         RedisConfig
 	Server        ServerConfig
 	GRPC          GRPCConfig
-	Observability ObservabilityConfig
+	Observability ObservabilityConfig `mapstructure:"observability"`
 }
 
 // ObservabilityConfig holds all observability-related configuration
 type ObservabilityConfig struct {
-	Jaeger     JaegerConfig
+	Jaeger     JaegerConfig `mapstructure:"jaeger"`
 	Prometheus PrometheusConfig
 	Logging    LoggingConfig
 }
 
 // JaegerConfig holds Jaeger tracing configuration
 type JaegerConfig struct {
-	ServiceName string
-	AgentHost   string
-	AgentPort   string
-	Enabled     bool
+	Enabled     bool   `mapstructure:"enabled"`
+	AgentHost   string `mapstructure:"agent_host"`
+	AgentPort   string `mapstructure:"agent_port"`
+	ServiceName string `mapstructure:"service_name"`
 }
 
 // PrometheusConfig holds Prometheus metrics configuration

@@ -26,7 +26,7 @@ func NewHandler(appCtx appctx.AppContext) *Handler {
 		appCtx.GetMainDBConnection(),
 		appCtx.GetReadMainDBConnection(),
 	)
-	customerUseCase := customerusecase.NewUseCase(customerRepo)
+	customerUseCase := customerusecase.NewUseCase(customerRepo, appCtx.GetTracer())
 
 	return &Handler{
 		appCtx:          appCtx,

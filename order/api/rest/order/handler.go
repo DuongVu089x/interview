@@ -41,6 +41,8 @@ func NewHandler(appCtx appctx.AppContext) *Handler {
 
 // CreateOrder handles order creation requests
 func (h *Handler) CreateOrder(c echo.Context) error {
+	ctx := c.Request().Context()
+
 	var req orderusecase.CreateOrderRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
@@ -50,7 +52,7 @@ func (h *Handler) CreateOrder(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	response, err := h.orderUseCase.CreateOrder(h.appCtx, req)
+	response, err := h.orderUseCase.CreateOrder(h.appCtx, ctx, req)
 	if err != nil {
 		if err.Error() == "customer not found" {
 			return echo.NewHTTPError(http.StatusNotFound, "Customer not found")

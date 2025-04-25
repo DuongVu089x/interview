@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DuongVu089x/interview/customer/config"
+	"github.com/DuongVu089x/interview/order/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/propagation"

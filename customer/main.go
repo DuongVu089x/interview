@@ -25,7 +25,10 @@ import (
 
 	pb "github.com/DuongVu089x/interview/customer/proto/customer"
 	userconnrepository "github.com/DuongVu089x/interview/customer/repository/user_connection"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // Function to initialize main database connection
@@ -121,8 +124,44 @@ func initKafkaConsumer(cfg *config.Config) (*kafka.RetryableConsumer, error) {
 
 // Function to initialize gRPC server
 func initGrpcServer(appCtx appctx.AppContext, cfg *config.Config) error {
-	// Create a new gRPC server
-	server := grpc.NewServer()
+	// Create a new gRPC server with tracing interceptor
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+			// Extract metadata from context
+			md, ok := metadata.FromIncomingContext(ctx)
+			if !ok {
+				md = metadata.New(map[string]string{})
+			}
+
+			// Extract trace context from metadata
+			carrier := propagation.MapCarrier{}
+			for k, vs := range md {
+				if len(vs) > 0 {
+					carrier[k] = vs[0]
+				}
+			}
+
+			ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+
+			// // Create a new span for the gRPC server call
+			// ctx, span := appCtx.GetTracer().Start(ctx, info.FullMethod)
+			// defer span.End()
+
+			// // Add service info to span
+			// span.SetAttributes(
+			// 	attribute.String("service", "customer-service"),
+			// 	attribute.String("rpc.method", info.FullMethod),
+			// )
+
+			// Call the handler
+			resp, err := handler(ctx, req)
+			if err != nil {
+				// span.RecordError(err)
+				// span.SetStatus(codes.Error, err.Error())
+			}
+			return resp, err
+		}),
+	)
 
 	// Register the customer service
 	customerHandler := customergrpchandler.NewGrpcHandler(appCtx)
@@ -220,6 +259,7 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.ConfigureCORS())
 	e.Use(middleware.RequestLogger())
+	e.Use(middleware.ObservabilityMiddleware(appCtx))
 
 	// Register routes
 	e.GET("/health", func(c echo.Context) error {

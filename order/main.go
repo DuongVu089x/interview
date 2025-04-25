@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof" // Import pprof
 	"time"
 
 	"github.com/DuongVu089x/interview/order/api/middleware"
 	"github.com/DuongVu089x/interview/order/api/rest/order"
 	"github.com/DuongVu089x/interview/order/component/appctx"
+	"github.com/DuongVu089x/interview/order/component/observability"
 	"github.com/DuongVu089x/interview/order/config"
 	"github.com/DuongVu089x/interview/order/infrastructure/kafka"
 	pb "github.com/DuongVu089x/interview/order/proto/customer"
@@ -17,6 +19,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -164,34 +168,63 @@ func initRedis(cfg *config.Config) (*redis.Client, error) {
 
 // Function to initialize customer service client
 func initCustomerClient(cfg *config.Config) (pb.CustomerServiceClient, error) {
-	addr := fmt.Sprintf("%s:%s", cfg.CustomerService.Host, cfg.CustomerService.Port)
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Create gRPC connection with tracing interceptor
+	conn, err := grpc.NewClient(
+		fmt.Sprintf("localhost:%s", cfg.GRPC.Port),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(
+			otelgrpc.NewClientHandler(),
+		),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to customer service: %v", err)
+		return nil, fmt.Errorf("failed to connect to customer service: %w", err)
 	}
-	return pb.NewCustomerServiceClient(conn), nil
+
+	// Create client
+	client := pb.NewCustomerServiceClient(conn)
+	return client, nil
 }
 
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
 
+	// Initialize observability
+	tp, err := observability.InitTracer(&cfg.Observability)
+	if err != nil {
+		log.Fatalf("Failed to initialize tracer: %v", err)
+	}
+	defer tp.Shutdown(context.Background())
+
+	logger, err := observability.NewLogger(&cfg.Observability)
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+
+	// Replace standard logger with zap logger
+	zap.ReplaceGlobals(logger)
+	logger = logger.Named("order-service")
+
+	// Get tracer
+	tracer := observability.GetTracer("order-service")
+
 	// Initialize infrastructure
 	mainDB, err := initMainDB(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize main database: %v", err)
+		logger.Fatal("Failed to initialize main database", zap.Error(err))
 		return
 	}
 
 	readDB, err := initReadDB(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize read database: %v", err)
+		logger.Fatal("Failed to initialize read database", zap.Error(err))
 		return
 	}
 
 	kafkaProducer, err := initKafkaProducer(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize Kafka producer: %v", err)
+		logger.Fatal("Failed to initialize Kafka producer", zap.Error(err))
 		return
 	}
 	defer kafkaProducer.Close()
@@ -202,28 +235,29 @@ func main() {
 	// 	return
 	// }
 
-	redisClient, err := initRedis(cfg)
-	if err != nil {
-		log.Fatalf("Failed to initialize Redis: %v", err)
-		return
-	}
+	// redisClient, err := initRedis(cfg)
+	// if err != nil {
+	// 	logger.Fatal("Failed to initialize Redis", zap.Error(err))
+	// 	return
+	// }
 	// defer redisClient.Close()
 
-	// Initialize customer service client
+	// Initialize customer service client with tracing interceptor
 	customerClient, err := initCustomerClient(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize customer client: %v", err)
+		logger.Fatal("Failed to initialize customer client", zap.Error(err))
 		return
 	}
 
-	// Initialize application context
+	// Initialize application context with tracer
 	appctx := appctx.NewAppContext(
 		mainDB,
 		readDB,
 		kafkaProducer,
 		nil,
-		redisClient,
 		customerClient,
+		logger,
+		tracer,
 	)
 
 	// Initialize Echo framework
@@ -233,6 +267,7 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.ConfigureCORS())
 	e.Use(middleware.RequestLogger())
+	e.Use(middleware.ObservabilityMiddleware(appctx))
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "OK"})
@@ -247,10 +282,14 @@ func main() {
 	// Print all registered routes for debugging
 	middleware.PrintRegisteredRoutes(e)
 
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
+
 	// Start server
 	serverAddr := fmt.Sprintf(":%s", cfg.Server.Port)
-	log.Printf("Starting server on %s", serverAddr)
+	logger.Info("Starting server", zap.String("address", serverAddr))
 	if err := e.Start(serverAddr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		logger.Fatal("Failed to start server", zap.Error(err))
 	}
 }

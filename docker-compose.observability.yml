@@ -5,11 +5,16 @@ services:
     image: jaegertracing/all-in-one:latest
     ports:
       - "16686:16686"   # UI
-      - "6831:6831/udp" # Agent
+      - "6831:6831/udp" # Agent UDP
+      - "6832:6832/udp" # Agent UDP (binary)
       - "14250:14250"   # Collector gRPC
+      - "14268:14268"   # Collector HTTP
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
     environment:
       - COLLECTOR_OTLP_ENABLED=true
       - LOG_LEVEL=debug
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
     networks:
       - observability
 
@@ -31,7 +36,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "3001:3001"
     volumes:
       - grafana_data:/var/lib/grafana
     environment:

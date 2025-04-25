@@ -12,6 +12,12 @@ REDIS_DB ?= 0
 SERVER_PORT ?= 8082
 GRPC_PORT ?= 50051
 
+# Jaeger Configuration
+JAEGER_ENABLED ?= true
+JAEGER_AGENT_HOST ?= 0.0.0.0
+JAEGER_AGENT_PORT ?= 14268
+JAEGER_SERVICE_NAME ?= customer-service
+
 # Export all variables for child processes
 export MONGODB_URI
 export MONGODB_READ_URI
@@ -23,6 +29,10 @@ export REDIS_PASSWORD
 export REDIS_DB
 export SERVER_PORT
 export GRPC_PORT
+export JAEGER_ENABLED
+export JAEGER_AGENT_HOST
+export JAEGER_AGENT_PORT
+export JAEGER_SERVICE_NAME
 
 # Run the application
 run:
@@ -42,6 +52,10 @@ run-with-env:
 	REDIS_DB=$(REDIS_DB) \
 	SERVER_PORT=$(SERVER_PORT) \
 	GRPC_PORT=$(GRPC_PORT) \
+	JAEGER_ENABLED=$(JAEGER_ENABLED) \
+	JAEGER_AGENT_HOST=$(JAEGER_AGENT_HOST) \
+	JAEGER_AGENT_PORT=$(JAEGER_AGENT_PORT) \
+	JAEGER_SERVICE_NAME=$(JAEGER_SERVICE_NAME) \
 	go run main.go
 
 # Build the application
